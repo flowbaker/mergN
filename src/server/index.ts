@@ -6,7 +6,6 @@ import {
   convertToModelMessages,
   tool,
   stepCountIs,
-  type Tool,
   type UIMessage,
 } from "ai";
 import { google } from "@ai-sdk/google";
@@ -19,7 +18,18 @@ import {
   deleteWorkflow,
 } from "./store";
 import { runWorkflow } from "./run";
-import { providers, searchProviders } from "../providers/registry";
+import {
+  searchProviders,
+  registerProviderFromDraft,
+  persistProvider,
+  loadPersistedProviders,
+} from "../providers/registry";
+import { authorProvider } from "../agent/provider-author";
+import {
+  listConnections,
+  createApiKeyConnection,
+  deleteConnection,
+} from "./connections";
 import type { FuncDefinition } from "../atoms/index";
 
 const SYSTEM = [
@@ -27,7 +37,7 @@ const SYSTEM = [
   "The user describes automations in natural language; you help them design the workflow.",
   "A workflow is made of typed 'funcs' (steps) wired together.",
   "For a PURE data transform (no external service), call author_func.",
-  "For a step that uses an external service: FIRST call search_providers to find the provider; the matching provider tool (e.g. provider_slack) then becomes available — call it to author that step.",
+  "For a step that uses an external service: FIRST call search_providers. If a provider matches, call author_func with that provider id. If NONE matches, call create_provider with the service name to generate one, then call author_func with the new provider id.",
   "For a multi-step workflow: author every step first, then connect them with the wire tool (an upstream output field into a downstream input, using the exact ids and names you created).",
   "Keep replies short. After building, briefly summarize the steps and how they connect.",
 ].join("\n");
@@ -54,50 +64,58 @@ function funcToWire(func: FuncDefinition, title: string, summary: string) {
   };
 }
 
-const providerTools = Object.fromEntries(
-  Object.values(providers).map((p) => [
-    `provider_${p.id}`,
-    tool({
-      description: `Author an effectful step that uses ${p.name}. ${p.apiDoc}`,
-      inputSchema: z.object({
-        intent: z
-          .string()
-          .describe("what this step should do, in one sentence"),
-      }),
-      execute: async ({ intent }) => {
-        const r = await authorFunc({ intent, provider: p.id });
-        return funcToWire(r.def, r.title, r.summary);
-      },
-    }),
-  ]),
-);
-
-const tools: Record<string, Tool> = {
+const tools = {
   search_providers: tool({
     description:
-      "Search available external providers by keyword. Returns matches; the matching provider tool then becomes available to author that step.",
+      "Search available external providers by keyword. Returns matches with their connection API. If nothing matches, use create_provider.",
     inputSchema: z.object({
-      query: z.string().describe("keywords, e.g. 'slack message' or 'http api'"),
+      query: z.string().describe("keywords, e.g. 'slack message' or 'notion page'"),
     }),
     execute: async ({ query }) =>
       searchProviders(query).map((p) => ({
         id: p.id,
         name: p.name,
         scopes: p.scopes,
-        tool: `provider_${p.id}`,
         apiDoc: p.apiDoc,
       })),
   }),
+  create_provider: tool({
+    description:
+      "Generate a NEW external provider when search_providers returns nothing for the service you need. Then call author_func with the returned provider id.",
+    inputSchema: z.object({
+      service: z.string().describe("the service name, e.g. 'Notion'"),
+      docsUrl: z
+        .string()
+        .optional()
+        .describe("optional API docs URL or notes to ground the client"),
+    }),
+    execute: async ({ service, docsUrl }) => {
+      const draft = await authorProvider(service, docsUrl);
+      registerProviderFromDraft(draft);
+      await persistProvider(draft);
+      return {
+        id: draft.id,
+        name: draft.name,
+        apiDoc: draft.apiDoc,
+        authEnv: draft.authEnv,
+        egressDomain: draft.egressDomain,
+      };
+    },
+  }),
   author_func: tool({
     description:
-      "Author a PURE data-transform step (no external service) from an intent.",
+      "Author a step from an intent. For a pure transform, omit provider. For an external-service step, pass the provider id (from search_providers or create_provider).",
     inputSchema: z.object({
       intent: z
         .string()
-        .describe("what the transform should do, in one sentence"),
+        .describe("what the step should do, in one sentence"),
+      provider: z
+        .string()
+        .optional()
+        .describe("provider id, if this step calls an external service"),
     }),
-    execute: async ({ intent }) => {
-      const r = await authorFunc({ intent });
+    execute: async ({ intent, provider }) => {
+      const r = await authorFunc({ intent, provider });
       return funcToWire(r.def, r.title, r.summary);
     },
   }),
@@ -123,10 +141,7 @@ const tools: Record<string, Tool> = {
       toInput: inputName ?? "",
     }),
   }),
-  ...providerTools,
 };
-
-const BASE_TOOLS = ["search_providers", "author_func", "wire"];
 
 const app = new Hono();
 
@@ -140,24 +155,6 @@ app.post("/api/chat", async (c) => {
     messages: modelMessages,
     stopWhen: stepCountIs(20),
     tools,
-    prepareStep: ({ steps }) => {
-      const active = [...BASE_TOOLS];
-      for (const step of steps) {
-        const results =
-          (step as { toolResults?: { toolName?: string; output?: unknown }[] })
-            .toolResults ?? [];
-        for (const tr of results) {
-          if (tr.toolName !== "search_providers") continue;
-          const out = (tr.output ?? []) as { tool?: string }[];
-          for (const r of out) {
-            if (r.tool && r.tool in tools && !active.includes(r.tool)) {
-              active.push(r.tool);
-            }
-          }
-        }
-      }
-      return { activeTools: active };
-    },
   });
 
   return result.toUIMessageStreamResponse({
@@ -229,6 +226,31 @@ app.post("/api/run", async (c) => {
     await stream.writeSSE({ data: "[DONE]" });
   });
 });
+
+app.get("/api/connections", async (c) => {
+  return c.json(await listConnections());
+});
+
+app.post("/api/connections", async (c) => {
+  const body = await c.req.json<{
+    provider?: string;
+    key?: string;
+    account?: string;
+  }>();
+  if (!body.provider || !body.key) {
+    return c.json({ error: "provider and key required" }, 400);
+  }
+  return c.json(
+    await createApiKeyConnection(body.provider, body.key, body.account),
+  );
+});
+
+app.delete("/api/connections/:id", async (c) => {
+  await deleteConnection(c.req.param("id"));
+  return c.json({ ok: true });
+});
+
+await loadPersistedProviders();
 
 serve({ fetch: app.fetch, port: 8787 }, (info) => {
   console.log(`chat server on http://localhost:${info.port}`);

@@ -1,7 +1,6 @@
-import { mkdir, readdir, readFile, writeFile, unlink } from "node:fs/promises";
-import { join } from "node:path";
+import { store } from "../store/docstore";
 
-const DIR = join(process.cwd(), "data", "workflows");
+const COLLECTION = "workflows";
 
 export interface SavedWorkflow {
   id: string;
@@ -21,53 +20,25 @@ export interface WorkflowMeta {
   updatedAt: string;
 }
 
-function safeId(id: string): string {
-  if (!/^[A-Za-z0-9_-]+$/.test(id)) throw new Error("invalid id");
-  return id;
-}
-
-async function ensureDir(): Promise<void> {
-  await mkdir(DIR, { recursive: true });
-}
-
 export async function listWorkflows(): Promise<WorkflowMeta[]> {
-  await ensureDir();
-  const files = (await readdir(DIR)).filter((f) => f.endsWith(".json"));
-  const metas: WorkflowMeta[] = [];
-  for (const file of files) {
-    try {
-      const wf = JSON.parse(
-        await readFile(join(DIR, file), "utf8"),
-      ) as SavedWorkflow;
-      metas.push({
-        id: wf.id,
-        name: wf.name,
-        funcCount: Array.isArray(wf.funcs) ? wf.funcs.length : 0,
-        updatedAt: wf.updatedAt,
-      });
-    } catch {
-      continue;
-    }
-  }
-  metas.sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
-  return metas;
+  const docs = (await store.list(COLLECTION)) as unknown as SavedWorkflow[];
+  return docs
+    .map((wf) => ({
+      id: wf.id,
+      name: wf.name,
+      funcCount: Array.isArray(wf.funcs) ? wf.funcs.length : 0,
+      updatedAt: wf.updatedAt,
+    }))
+    .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
 }
 
 export async function getWorkflow(id: string): Promise<SavedWorkflow | null> {
-  await ensureDir();
-  try {
-    return JSON.parse(
-      await readFile(join(DIR, `${safeId(id)}.json`), "utf8"),
-    ) as SavedWorkflow;
-  } catch {
-    return null;
-  }
+  return (await store.get(COLLECTION, id)) as SavedWorkflow | null;
 }
 
 export async function saveWorkflow(
   input: Omit<SavedWorkflow, "createdAt" | "updatedAt">,
 ): Promise<SavedWorkflow> {
-  await ensureDir();
   const existing = await getWorkflow(input.id);
   const now = new Date().toISOString();
   const wf: SavedWorkflow = {
@@ -75,14 +46,10 @@ export async function saveWorkflow(
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
   };
-  await writeFile(join(DIR, `${safeId(input.id)}.json`), JSON.stringify(wf, null, 2));
+  await store.put(COLLECTION, input.id, wf as unknown as Record<string, unknown>);
   return wf;
 }
 
 export async function deleteWorkflow(id: string): Promise<void> {
-  try {
-    await unlink(join(DIR, `${safeId(id)}.json`));
-  } catch {
-    return;
-  }
+  await store.remove(COLLECTION, id);
 }

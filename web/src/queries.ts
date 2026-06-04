@@ -66,3 +66,39 @@ export function useDeleteWorkflow() {
 export function fetchWorkflow(id: string): Promise<SavedWorkflow> {
   return json<SavedWorkflow>(`/api/workflows/${id}`);
 }
+
+export interface ConnectionMeta {
+  id: string;
+  provider: string;
+  account?: string;
+  createdAt: string;
+}
+
+export function useConnections() {
+  return useQuery({
+    queryKey: ["connections"],
+    queryFn: () => json<ConnectionMeta[]>("/api/connections"),
+  });
+}
+
+export function useCreateConnection() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { provider: string; key: string; account?: string }) =>
+      json<ConnectionMeta>("/api/connections", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["connections"] }),
+  });
+}
+
+export function useDeleteConnection() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      json<{ ok: boolean }>(`/api/connections/${id}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["connections"] }),
+  });
+}

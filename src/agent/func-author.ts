@@ -33,7 +33,7 @@ export async function authorFunc(spec: FuncSpec): Promise<AuthoredFuncResult> {
   const providerNote = prov
     ? `This step uses the '${prov.id}' provider (scopes: ${prov.scopes.join(", ") || "none"}). Connection API: ${prov.apiDoc}`
     : "";
-  const { experimental_output: object } = await generateText({
+  const { output: object } = await generateText({
     model: google(process.env.GEMINI_MODEL ?? "gemini-2.5-flash"),
     output: Output.object({ schema: funcDraftZ }),
     system: SYSTEM,

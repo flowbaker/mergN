@@ -47,13 +47,42 @@ End to end: describe in chat → nodes appear → save → run → real Slack me
    unsafe for prod). Swap behind the `Runtime` interface for isolated-vm /
    microVM, with a capability broker so the body has no raw tokens / no network
    (all effects via broker). Pure funcs: deny-all network + deterministic.
+   Egress guard DONE as a cheap pre-sandbox layer: AI-written provider clients
+   get a `fetch` shadowed by `guardedFetch(egressDomain)` (new Function "token",
+   "fetch", source), so they can only reach their declared domain (+subdomains);
+   any other host throws "egress blocked". Not a hard boundary (globalThis.fetch
+   could bypass) — defense-in-depth until the real sandbox.
+   PLAN: move to a **kernel-level sandbox per workspace** (microVM/gVisor) — each
+   workspace's AI code runs isolated; egress + credentials enforced at the kernel
+   boundary, not in-process.
 4. **Richer wiring** — wires currently become ref bindings only. Add `dependsOn`
    (ordering-only edges) and type-checking on connect (output schema vs input
    port); offer an AI-authored adapter when types do not match.
-5. **Real connections / auth** — OAuth connect flow + vault for credentials
-   (not env). Per-connection scopes, refresh, revocation.
+5. **Real connections / auth** — API-key path DONE: `Vault` interface
+   (`src/store/vault.ts`, DocVault over the store "secrets" collection — swap for
+   encrypted/KMS later) + `connections` (DocStore "connections"); a connection
+   stores only a `vaultRef`, never the raw key. Run resolves provider secret:
+   connection→vault, else env fallback, else stub. UI: NodePanel Connections
+   section has a paste-key Connect/disconnect per provider (TanStack Query).
+   NEXT: OAuth connect flow (curated apps, redirect + refresh) for big providers;
+   encrypt the vault at rest; multi-account selection on the node.
 6. **Idempotency + retry in run** — wire the write-ahead + provider-key protocol
    and per-`dangerClass` retry policy into the actual run path.
+7. **AI-written providers (workspace-scoped)** — when `search_providers` finds
+   nothing, a `create_provider` tool has the AI generate the provider on demand:
+   `createClient` code + apiDoc + auth-shape + egress domain (optionally grounded
+   by fetching the API's OpenAPI/docs via the http provider). Smoke-test live
+   against the real API, then PROMOTE into the registry. Scope: **per user
+   workspace** (`data/workspaces/<id>/providers/*.json`), not global — so a bad
+   provider's blast radius is one workspace, no cross-tenant review gate needed.
+   Why it's worth it (not just convenience): keeps the credential at the
+   connection level (capability injection) instead of leaking it into func data
+   — generic HTTP can't do that for authed APIs. Requires the sandbox/broker
+   (item 3): egress allow-listed to the declared domain, credential injected, so
+   an AI-written provider can't exfiltrate the user's own token. Start with
+   API-key/bearer services (user pastes a key); OAuth needs a pre-registered app
+   (human boundary). Registry becomes layered: hand-written seeds + per-workspace
+   AI-written. Product angle: the workspace accumulates integrations on demand.
 
 ## Key decisions (so we do not relitigate)
 

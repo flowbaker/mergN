@@ -22,7 +22,8 @@ import {
   InMemoryQueue,
   InMemoryFuncRegistry,
 } from "../engine/index";
-import { buildClient } from "../providers/registry";
+import { buildClientWithSecret, getProvider } from "../providers/registry";
+import { resolveProviderSecret } from "./connections";
 
 class NotifyingRunLog implements RunLogStore {
   private records: StepRecord[] = [];
@@ -185,7 +186,12 @@ class Connections implements ConnectionResolver {
   async inject(node: FuncNode): Promise<Record<string, ProviderClient>> {
     const clients: Record<string, ProviderClient> = {};
     for (const [name, provider] of Object.entries(node.connections)) {
-      clients[name] = buildClient(provider) ?? stubClient;
+      let secret = await resolveProviderSecret(provider);
+      if (!secret) {
+        const spec = getProvider(provider);
+        if (spec?.env) secret = process.env[spec.env] ?? null;
+      }
+      clients[name] = buildClientWithSecret(provider, secret ?? undefined) ?? stubClient;
     }
     return clients;
   }
