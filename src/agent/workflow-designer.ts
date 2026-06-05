@@ -3,8 +3,19 @@ import { google } from "@ai-sdk/google";
 import { z } from "zod";
 import type { Registry } from "../providers/registry";
 import { authorProvider } from "./provider-author";
+import { authorInputForm } from "./form-author";
 
 export const planZ = z.object({
+  name: z
+    .string()
+    .describe(
+      "a short human title for the whole workflow (3-6 words) describing what it does, e.g. 'Stripe receipt to Slack' or 'Daily signups digest'",
+    ),
+  triggerKind: z
+    .enum(["manual", "webhook"])
+    .describe(
+      "how the workflow starts. Use 'webhook' when it should run in REACTION to an external event or HTTP call — phrasing like 'when a payment succeeds', 'on a new issue', 'whenever X happens'. Use 'manual' when the user runs it themselves on demand (e.g. 'format this', 'summarize and email me') or doesn't imply an external trigger.",
+    ),
   steps: z.array(
     z.object({
       id: z.string().describe("snake_case step id, e.g. create_customer"),
@@ -46,6 +57,8 @@ type Step = Plan["steps"][number];
 const PLAN_SYSTEM = [
   "You are a workflow planner for an AI-native automation product. Given the user's goal, produce a COMPLETE plan.",
   "A workflow has a built-in 'trigger' node (the run-time input) and typed steps wired together. A step input comes EITHER from a trigger field OR from an upstream step's output.",
+  "Give the workflow a short human name (3-6 words) that says what it does.",
+  "Pick triggerKind: 'webhook' if the goal reacts to an external event/HTTP call ('when a payment succeeds', 'on a new issue'), otherwise 'manual'. Only these two are supported.",
   "For each step give: id (snake_case, e.g. create_customer), title, summary, effectful (true if it calls an external service), provider (for effectful steps, e.g. 'stripe','slack'), a DETAILED intent (say exactly what values the step needs and what it returns — e.g. a Slack message needs a channel and the text), outputs (its output field names), and deps (ONLY the inputs that come from an UPSTREAM step's output: input name, fromStep id, fromOutput field).",
   "Inputs NOT listed in deps are taken from the user's trigger input automatically by name. Use consistent field names across steps so they wire up.",
 ].join("\n");
@@ -115,6 +128,7 @@ export async function designWorkflow(
   registry: Registry,
   spaceId: string,
   plan: Plan,
+  goal = "",
 ) {
   const providerIds = new Set(
     plan.steps.filter((s) => s.effectful && s.provider).map((s) => s.provider!),
@@ -189,5 +203,14 @@ export async function designWorkflow(
     });
   }
 
-  return { funcs, wires, triggerFields: [...triggerFields] };
+  const inputForm = await authorInputForm(goal, [...triggerFields]);
+
+  return {
+    name: plan.name,
+    funcs,
+    wires,
+    triggerFields: [...triggerFields],
+    trigger: { kind: plan.triggerKind },
+    inputForm,
+  };
 }

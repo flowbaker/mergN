@@ -1,10 +1,12 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import type { AuthoredFunc, RunStepData, Wire } from "./types";
+import { Input } from "@/components/ui/input";
+import type { AuthoredFunc, InputForm, RunStepData, Wire } from "./types";
 import { spaceHeaders } from "./space";
-import { useRuns, fetchRun } from "./queries";
+import { useRuns, fetchRun, generateInputForm } from "./queries";
 
 interface RunRecord {
   nodeId: string;
@@ -35,6 +37,10 @@ export function RunPanel({
   config,
   workflowId,
   workflowName,
+  inputForm,
+  onInputForm,
+  triggerFields,
+  syncing,
   onStatus,
   onData,
   onRepair,
@@ -44,6 +50,10 @@ export function RunPanel({
   config: Record<string, Record<string, string>>;
   workflowId: string | null;
   workflowName: string;
+  inputForm: InputForm | null;
+  onInputForm: (form: InputForm | null) => void;
+  triggerFields: string[];
+  syncing: boolean;
   onStatus: (status: Record<string, string>) => void;
   onData: (data: Record<string, RunStepData>) => void;
   onRepair: (
@@ -64,6 +74,60 @@ export function RunPanel({
   const [error, setError] = useState<string | null>(null);
   const [loadingRun, setLoadingRun] = useState<string | null>(null);
   const [tab, setTab] = useState<"input" | "state" | "runs">("input");
+  const [formValues, setFormValues] = useState<Record<string, string>>({});
+  const [inputMode, setInputMode] = useState<"form" | "json">("form");
+  const [regenerating, setRegenerating] = useState(false);
+
+  useEffect(() => {
+    if (!inputForm) return;
+    setFormValues((prev) => {
+      const next = { ...prev };
+      for (const f of inputForm.fields) {
+        if (next[f.name] === undefined)
+          next[f.name] =
+            f.defaultValue ?? (f.control === "toggle" ? "false" : "");
+      }
+      return next;
+    });
+  }, [inputForm]);
+
+  const setField = (name: string, value: string) =>
+    setFormValues((prev) => ({ ...prev, [name]: value }));
+
+  const buildFormInput = (): Record<string, unknown> => {
+    const obj: Record<string, unknown> = {};
+    if (!inputForm) return obj;
+    for (const f of inputForm.fields) {
+      const v = formValues[f.name] ?? f.defaultValue ?? "";
+      if (f.control === "toggle") {
+        obj[f.name] = v === "true";
+      } else if (f.control === "number") {
+        if (v === "") continue;
+        const n = Number(v);
+        obj[f.name] = Number.isNaN(n) ? v : n;
+      } else {
+        if (v === "" && !f.required) continue;
+        obj[f.name] = v;
+      }
+    }
+    return obj;
+  };
+
+  const regenerate = async () => {
+    setRegenerating(true);
+    setError(null);
+    try {
+      const form = await generateInputForm(workflowName, triggerFields);
+      onInputForm(form);
+      setInputMode("form");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setRegenerating(false);
+    }
+  };
+
+  const useForm = !!inputForm && inputForm.fields.length > 0;
 
   const titleOf = (nodeId: string) =>
     nodeId === "trigger"
@@ -78,11 +142,15 @@ export function RunPanel({
   const run = async () => {
     setError(null);
     let parsed: unknown;
-    try {
-      parsed = JSON.parse(input || "{}");
-    } catch {
-      setError("Invalid JSON input");
-      return;
+    if (useForm && inputMode === "form") {
+      parsed = buildFormInput();
+    } else {
+      try {
+        parsed = JSON.parse(input || "{}");
+      } catch {
+        setError("Invalid JSON input");
+        return;
+      }
     }
     setRunning(true);
     setRecords([]);
@@ -188,13 +256,16 @@ export function RunPanel({
               key={t}
               onClick={() => setTab(t)}
               className={cn(
-                "rounded-md px-2.5 py-1 capitalize transition-colors",
+                "flex items-center gap-1 rounded-md px-2.5 py-1 capitalize transition-colors",
                 tab === t
                   ? "bg-background text-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
               {t}
+              {t === "input" && syncing && (
+                <RefreshCw className="h-2.5 w-2.5 animate-spin text-amber-300" />
+              )}
             </button>
           ))}
         </div>
@@ -212,16 +283,156 @@ export function RunPanel({
 
       {tab === "input" ? (
         <div className="flex min-h-0 flex-1 flex-col px-3 pb-3">
-          <div className="mb-1 text-[11px] text-muted-foreground">
-            trigger input (JSON)
+          <div className="mb-2 flex items-center gap-2">
+            <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+              <span>
+                {useForm && inputMode === "form"
+                  ? "trigger input"
+                  : "trigger input (JSON)"}
+              </span>
+              {syncing && (
+                <span className="flex items-center gap-1 text-amber-300">
+                  <RefreshCw className="h-3 w-3 animate-spin" />
+                  updating form…
+                </span>
+              )}
+            </div>
+            <div className="ml-auto flex items-center gap-1.5">
+              {triggerFields.length > 0 && (
+                <button
+                  onClick={regenerate}
+                  disabled={regenerating || syncing}
+                  title="Generate an input form from the trigger fields"
+                  className="flex items-center gap-1 rounded-md border border-border/50 px-1.5 py-0.5 text-[10px] text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+                >
+                  <RefreshCw
+                    className={cn(
+                      "h-3 w-3",
+                      (regenerating || syncing) && "animate-spin",
+                    )}
+                  />
+                  {inputForm ? "form" : "make form"}
+                </button>
+              )}
+              {useForm && (
+                <div className="flex rounded-md border border-border/50 bg-muted/50 p-0.5 text-[10px]">
+                  {(["form", "json"] as const).map((m) => (
+                    <button
+                      key={m}
+                      onClick={() => {
+                        if (m === "json" && inputMode === "form")
+                          setInput(JSON.stringify(buildFormInput(), null, 2));
+                        setInputMode(m);
+                      }}
+                      className={cn(
+                        "rounded px-1.5 py-0.5 uppercase transition-colors",
+                        inputMode === m
+                          ? "bg-background text-foreground shadow-sm"
+                          : "text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      {m}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-          <textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            spellCheck={false}
-            placeholder='{ "email": "ada@x.com", "amount": 2000 }'
-            className="min-h-0 flex-1 resize-none rounded-xl border border-border/50 bg-background p-3 font-mono text-xs outline-none transition-colors focus:border-foreground/20"
-          />
+
+          {useForm && inputMode === "form" ? (
+            <div
+              className={cn(
+                "min-h-0 flex-1 space-y-3 overflow-auto rounded-xl border border-border/50 bg-background p-3 transition-opacity",
+                syncing && "pointer-events-none opacity-50",
+              )}
+            >
+              {inputForm!.fields.map((f) => {
+                const value = formValues[f.name] ?? f.defaultValue ?? "";
+                return (
+                  <div key={f.name} className="space-y-1">
+                    <label className="flex items-center gap-2 text-xs">
+                      <span className="font-medium">{f.label}</span>
+                      <span className="font-mono text-[10px] text-muted-foreground/50">
+                        {f.name}
+                      </span>
+                      {f.required && (
+                        <span className="text-[10px] text-rose-300/70">
+                          required
+                        </span>
+                      )}
+                    </label>
+                    {f.control === "textarea" ? (
+                      <textarea
+                        value={value}
+                        onChange={(e) => setField(f.name, e.target.value)}
+                        placeholder={f.placeholder}
+                        rows={3}
+                        className="w-full resize-y rounded-lg border border-border/50 bg-background-subtle p-2 text-xs outline-none transition-colors focus:border-foreground/20"
+                      />
+                    ) : f.control === "select" ? (
+                      <select
+                        value={value}
+                        onChange={(e) => setField(f.name, e.target.value)}
+                        className="h-8 w-full rounded-lg border border-border/50 bg-background-subtle px-2 text-xs outline-none transition-colors focus:border-foreground/20"
+                      >
+                        <option value="">{f.placeholder ?? "Select…"}</option>
+                        {f.options?.map((o) => (
+                          <option key={o.value} value={o.value}>
+                            {o.label}
+                          </option>
+                        ))}
+                      </select>
+                    ) : f.control === "toggle" ? (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setField(f.name, value === "true" ? "false" : "true")
+                        }
+                        className={cn(
+                          "flex h-6 w-11 items-center rounded-full p-0.5 transition-colors",
+                          value === "true" ? "bg-emerald-500/80" : "bg-muted",
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            "size-5 rounded-full bg-background shadow transition-transform",
+                            value === "true" && "translate-x-5",
+                          )}
+                        />
+                      </button>
+                    ) : (
+                      <Input
+                        value={value}
+                        onChange={(e) => setField(f.name, e.target.value)}
+                        type={
+                          f.control === "number"
+                            ? "number"
+                            : f.control === "date"
+                              ? "date"
+                              : "text"
+                        }
+                        placeholder={f.placeholder}
+                        className="h-8 rounded-lg bg-background-subtle text-xs"
+                      />
+                    )}
+                    {f.help && (
+                      <p className="text-[11px] leading-snug text-muted-foreground/70">
+                        {f.help}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              spellCheck={false}
+              placeholder='{ "email": "ada@x.com", "amount": 2000 }'
+              className="min-h-0 flex-1 resize-none rounded-xl border border-border/50 bg-background p-3 font-mono text-xs outline-none transition-colors focus:border-foreground/20"
+            />
+          )}
         </div>
       ) : tab === "runs" ? (
         <div className="min-h-0 flex-1 overflow-auto px-3 pb-3">

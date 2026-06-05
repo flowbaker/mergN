@@ -11,11 +11,38 @@ export interface TriggerConfig {
   kind: TriggerKind;
 }
 
+export type FormControl =
+  | "text"
+  | "textarea"
+  | "number"
+  | "toggle"
+  | "select"
+  | "date";
+
+export interface FormField {
+  name: string;
+  label: string;
+  control: FormControl;
+  placeholder?: string;
+  help?: string;
+  required?: boolean;
+  options?: { label: string; value: string }[];
+  defaultValue?: string;
+}
+
+export interface InputForm {
+  title?: string;
+  fields: FormField[];
+}
+
 export type WorkflowOp =
   | { key: string; kind: "funcs"; funcs: AuthoredFunc[] }
   | { key: string; kind: "wires"; wires: Wire[] }
   | { key: string; kind: "deleteFunc"; id: string }
-  | { key: string; kind: "unwire"; to: string; toInput?: string };
+  | { key: string; kind: "unwire"; to: string; toInput?: string }
+  | { key: string; kind: "trigger"; trigger: TriggerConfig }
+  | { key: string; kind: "inputForm"; inputForm: InputForm }
+  | { key: string; kind: "name"; name: string };
 
 export interface RunStepData {
   status: string;

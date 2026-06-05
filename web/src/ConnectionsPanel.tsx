@@ -19,11 +19,15 @@ export function ConnectionsPanel({ missing }: { missing: string[] }) {
 
   return (
     <div className="flex h-64 shrink-0 flex-col overflow-hidden rounded-2xl border border-border/40 bg-muted/40">
-      <div className="flex items-center gap-2 px-4 py-3">
-        <span className="text-sm font-semibold">Connections</span>
-        <span className="ml-auto rounded bg-muted/60 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground/80">
-          {items.length}
-        </span>
+      <div className="px-2 pt-2">
+        <div className="flex items-center gap-2 rounded-lg bg-background-subtle px-2.5 py-1.5">
+          <span className="text-xs font-medium text-foreground/80">
+            Connections
+          </span>
+          <span className="rounded bg-muted/60 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground/70">
+            {items.length}
+          </span>
+        </div>
       </div>
 
       <div className="min-h-0 flex-1 space-y-0.5 overflow-auto p-2">

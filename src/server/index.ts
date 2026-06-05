@@ -21,6 +21,7 @@ import { FileStore, assertSpace } from "../store/docstore";
 import { DocVault } from "../store/vault";
 import { authorProvider, repairProvider } from "../agent/provider-author";
 import { designWorkflow, planWorkflow } from "../agent/workflow-designer";
+import { authorInputForm } from "../agent/form-author";
 import { createConnections } from "./connections";
 import { createOAuth } from "./oauth";
 import type { FuncDefinition, StepRecord } from "../atoms/index";
@@ -120,7 +121,7 @@ function makeTools(spaceId: string) {
     }),
     execute: async ({ goal }) => {
       const plan = await planWorkflow(goal);
-      return designWorkflow(registry, spaceId, plan);
+      return designWorkflow(registry, spaceId, plan, goal);
     },
   }),
   search_providers: tool({
@@ -361,6 +362,7 @@ app.put("/api/workflows/:id", async (c) => {
     positions?: Record<string, { x: number; y: number }>;
     config?: Record<string, Record<string, string>>;
     trigger?: { kind: "manual" | "webhook" | "schedule" | "poll" | "event" };
+    inputForm?: unknown;
   }>();
   const wf = await workflows.saveWorkflow(c.get("spaceId"), {
     id,
@@ -370,6 +372,7 @@ app.put("/api/workflows/:id", async (c) => {
     positions: body.positions ?? {},
     config: body.config ?? {},
     trigger: body.trigger ?? { kind: "manual" },
+    inputForm: body.inputForm,
   });
   return c.json(wf);
 });
@@ -438,6 +441,12 @@ app.post("/api/hooks/:spaceId/:workflowId", async (c) => {
     .catch(() => ({}) as Record<string, unknown>);
   const run = await runSavedWorkflow(spaceId, wf, body ?? {}, "webhook");
   return c.json({ ok: true, runId: run.id, status: run.status });
+});
+
+app.post("/api/input-form", async (c) => {
+  const body = await c.req.json<{ goal?: string; fields?: string[] }>();
+  const form = await authorInputForm(body.goal ?? "", body.fields ?? []);
+  return c.json(form);
 });
 
 app.get("/api/runs", async (c) => {

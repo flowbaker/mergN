@@ -14,6 +14,7 @@ export interface SavedWorkflow {
   positions: Record<string, { x: number; y: number }>;
   config: Record<string, Record<string, string>>;
   trigger?: TriggerConfig;
+  inputForm?: unknown;
   createdAt: string;
   updatedAt: string;
 }

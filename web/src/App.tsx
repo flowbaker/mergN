@@ -27,11 +27,13 @@ import { RunPanel } from "./RunPanel";
 import {
   useSaveWorkflow,
   fetchWorkflow,
+  generateInputForm,
   useConnections,
   type ConnectionMeta,
 } from "./queries";
 import type {
   AuthoredFunc,
+  InputForm,
   RunStepData,
   TriggerConfig,
   Wire,
@@ -39,9 +41,7 @@ import type {
 } from "./types";
 import { summarizeWorkflow, outputsOf } from "./lineage";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 
 const wireKey = (w: Wire) => `${w.from}.${w.fromOutput}->${w.to}.${w.toInput}`;
 
@@ -121,6 +121,9 @@ export function App() {
     kind: "manual",
   });
   const [triggerOpen, setTriggerOpen] = useState(false);
+  const [inputForm, setInputForm] = useState<InputForm | null>(null);
+  const [formSyncing, setFormSyncing] = useState(false);
+  const [autoSave, setAutoSave] = useState(false);
   const [theme, setTheme] = useState<"dark" | "light">(() =>
     typeof document !== "undefined" &&
     document.documentElement.classList.contains("dark")
@@ -197,6 +200,28 @@ export function App() {
     }
     return [...fields];
   }, [wires]);
+
+  useEffect(() => {
+    if (!inputForm) return;
+    const have = inputForm.fields
+      .map((f) => f.name)
+      .sort()
+      .join("|");
+    const want = [...triggerFields].sort().join("|");
+    if (have === want) return;
+    const t = setTimeout(async () => {
+      setFormSyncing(true);
+      try {
+        const form = await generateInputForm(name, triggerFields);
+        setInputForm(form);
+      } catch {
+        void 0;
+      } finally {
+        setFormSyncing(false);
+      }
+    }, 500);
+    return () => clearTimeout(t);
+  }, [triggerFields, inputForm, name]);
 
   const onSelectNode = useCallback((id: string) => {
     if (id === "trigger") {
@@ -280,6 +305,13 @@ export function App() {
               ),
           ),
         );
+      } else if (o.kind === "trigger") {
+        setTrigger(o.trigger);
+      } else if (o.kind === "inputForm") {
+        setInputForm(o.inputForm);
+      } else if (o.kind === "name") {
+        setName(o.name);
+        setAutoSave(true);
       }
     }
   }, [ops]);
@@ -356,6 +388,7 @@ export function App() {
     setName("untitled");
     setTrigger({ kind: "manual" });
     setSavedTrigger({ kind: "manual" });
+    setInputForm(null);
   };
 
   const save = async () => {
@@ -369,10 +402,20 @@ export function App() {
       positions,
       config: configValues,
       trigger,
+      inputForm,
     });
     setWorkflowId(id);
     setSavedTrigger(trigger);
   };
+
+  useEffect(() => {
+    if (!autoSave || funcs.length === 0) return;
+    const t = setTimeout(() => {
+      setAutoSave(false);
+      void save();
+    }, 350);
+    return () => clearTimeout(t);
+  }, [autoSave, funcs]);
 
   const load = async (id: string) => {
     const wf = await fetchWorkflow(id);
@@ -385,6 +428,7 @@ export function App() {
     setName(wf.name ?? "untitled");
     setTrigger(wf.trigger ?? { kind: "manual" });
     setSavedTrigger(wf.trigger ?? { kind: "manual" });
+    setInputForm(wf.inputForm ?? null);
   };
 
   return (
@@ -393,24 +437,7 @@ export function App() {
         <header className="flex items-center gap-3 rounded-2xl border border-border/40 bg-muted/40 px-4 py-2">
           <strong className="text-sm font-semibold">Workflow Builder</strong>
           <SpaceSwitcher />
-          <Separator orientation="vertical" className="h-5" />
-          <Input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="h-8 w-48 bg-background-subtle text-sm"
-          />
-          <Button
-            size="sm"
-            onClick={save}
-            disabled={saveMutation.isPending || funcs.length === 0}
-          >
-            {saveMutation.isPending ? "saving…" : "Save"}
-          </Button>
-          <Button size="sm" variant="ghost" onClick={reset}>
-            New
-          </Button>
-          <Separator orientation="vertical" className="ml-auto h-5" />
-          <Badge variant="secondary" className="font-normal">
+          <Badge variant="secondary" className="ml-auto font-normal">
             {funcs.length} func
           </Badge>
           <Button
@@ -432,7 +459,16 @@ export function App() {
       <div className="flex min-h-0 flex-1 gap-2 p-2">
         <div className="flex w-60 shrink-0 flex-col gap-2">
           <div className="min-h-0 flex-1">
-            <WorkflowsPanel currentId={workflowId} onLoad={load} />
+            <WorkflowsPanel
+              currentId={workflowId}
+              onLoad={load}
+              name={name}
+              onName={setName}
+              onSave={save}
+              saving={saveMutation.isPending}
+              canSave={funcs.length > 0}
+              onNew={reset}
+            />
           </div>
           <ConnectionsPanel missing={missingProviders} />
         </div>
@@ -520,6 +556,10 @@ export function App() {
               config={configValues}
               workflowId={workflowId}
               workflowName={name}
+              inputForm={inputForm}
+              onInputForm={setInputForm}
+              triggerFields={triggerFields}
+              syncing={formSyncing}
               onStatus={setRunStatus}
               onData={setRunData}
               onRepair={onRepair}

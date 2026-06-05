@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { AuthoredFunc, TriggerConfig, Wire } from "./types";
+import type { AuthoredFunc, InputForm, TriggerConfig, Wire } from "./types";
 import { spaceHeaders } from "./space";
 
 export interface WorkflowMeta {
@@ -17,6 +17,7 @@ export interface SavedWorkflow {
   positions: Record<string, { x: number; y: number }>;
   config: Record<string, Record<string, string>>;
   trigger?: TriggerConfig;
+  inputForm?: InputForm;
   createdAt: string;
   updatedAt: string;
 }
@@ -29,6 +30,18 @@ export interface SaveInput {
   positions: Record<string, { x: number; y: number }>;
   config: Record<string, Record<string, string>>;
   trigger: TriggerConfig;
+  inputForm: InputForm | null;
+}
+
+export function generateInputForm(
+  goal: string,
+  fields: string[],
+): Promise<InputForm> {
+  return json<InputForm>("/api/input-form", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ goal, fields }),
+  });
 }
 
 async function json<T>(url: string, init?: RequestInit): Promise<T> {

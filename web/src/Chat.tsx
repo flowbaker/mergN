@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useChat } from "@ai-sdk/react";
-import type { AuthoredFunc, Wire, WorkflowOp } from "./types";
+import type { AuthoredFunc, InputForm, Wire, WorkflowOp } from "./types";
 import { Sparkles, ArrowUpRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Markdown } from "./Markdown";
@@ -90,11 +90,31 @@ export function Chat({
         if (!o) return;
         switch (part.type) {
           case "tool-design_workflow": {
-            const dw = o as { funcs?: AuthoredFunc[]; wires?: Wire[] };
+            const dw = o as {
+              name?: string;
+              funcs?: AuthoredFunc[];
+              wires?: Wire[];
+              trigger?: { kind: "manual" | "webhook" };
+              inputForm?: InputForm;
+            };
+            if (dw.name)
+              out.push({ key: `${key}:n`, kind: "name", name: dw.name });
             if (dw.funcs?.length)
               out.push({ key: `${key}:f`, kind: "funcs", funcs: dw.funcs });
             if (dw.wires?.length)
               out.push({ key: `${key}:w`, kind: "wires", wires: dw.wires });
+            if (dw.trigger)
+              out.push({
+                key: `${key}:t`,
+                kind: "trigger",
+                trigger: dw.trigger,
+              });
+            if (dw.inputForm)
+              out.push({
+                key: `${key}:if`,
+                kind: "inputForm",
+                inputForm: dw.inputForm,
+              });
             break;
           }
           case "tool-author_func":
@@ -218,7 +238,7 @@ export function Chat({
                 <div
                   className={cn(
                     isUser
-                      ? "max-w-[85%] break-words rounded-2xl rounded-br-md border border-border/60 bg-secondary px-3.5 py-2 text-[14px] leading-relaxed text-secondary-foreground shadow-sm [overflow-wrap:anywhere]"
+                      ? "max-w-[85%] rounded-2xl rounded-br-md border border-border/60 bg-secondary px-3.5 py-2 text-[14px] leading-relaxed text-secondary-foreground shadow-sm wrap-anywhere"
                       : "w-full min-w-0 overflow-hidden text-foreground/90",
                   )}
                 >

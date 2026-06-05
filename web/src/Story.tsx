@@ -1,3 +1,4 @@
+import { BookOpenText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { AuthoredFunc, Wire } from "./types";
 import { lineage, outputsOf, type Source } from "./lineage";
@@ -124,8 +125,54 @@ export function Story({
 
   if (funcs.length === 0 && triggerFields.length === 0) {
     return (
-      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-        Describe an automation in the chat to read its story.
+      <div className="flex h-full items-center justify-center p-8">
+        <div className="w-full max-w-md text-center">
+          <div className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-secondary ring-1 ring-border">
+            <BookOpenText className="h-5 w-5 text-foreground/80" />
+          </div>
+          <h2 className="mt-5 text-lg font-medium text-foreground">
+            Your workflow, in plain language
+          </h2>
+          <p className="mx-auto mt-1.5 max-w-xs text-[13px] leading-relaxed text-muted-foreground">
+            Describe an automation in the chat — it appears here as readable
+            steps you can follow end to end.
+          </p>
+
+          <div className="mt-7 overflow-hidden rounded-2xl border border-border/40 bg-card/40 p-5 text-left">
+            <div className="pointer-events-none select-none space-y-3 text-[13px] leading-7 text-foreground/45 [-webkit-mask-image:linear-gradient(to_bottom,black_55%,transparent)] [mask-image:linear-gradient(to_bottom,black_55%,transparent)]">
+              <p>
+                <span className="text-muted-foreground/70">
+                  When this runs, it receives{" "}
+                </span>
+                <Tok tone="trigger">email</Tok>
+                <Tok tone="trigger">amount</Tok>
+                <span className="text-muted-foreground/70"> from the trigger.</span>
+              </p>
+              <p>
+                <NumBadge n={1} />
+                <span className="font-medium text-foreground/70">
+                  Create customer.
+                </span>{" "}
+                <span className="text-muted-foreground/70">It uses </span>
+                <Tok tone="trigger">email</Tok>
+                <span className="text-muted-foreground/70">, producing </span>
+                <Tok tone="out">customerId</Tok>
+                <span className="text-muted-foreground/70">.</span>
+              </p>
+              <p>
+                <NumBadge n={2} />
+                <span className="font-medium text-foreground/70">
+                  Charge the card.
+                </span>{" "}
+                <span className="text-muted-foreground/70">It uses </span>
+                <Tok tone="step">customerId</Tok>
+                <span className="text-muted-foreground/70"> and </span>
+                <Tok tone="trigger">amount</Tok>
+                <span className="text-muted-foreground/70">.</span>
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
