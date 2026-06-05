@@ -20,6 +20,7 @@ import { TriggerNode } from "./TriggerNode";
 import { NodePanel } from "./NodePanel";
 import { RightPanel, type RightTab } from "./RightPanel";
 import { WorkflowsPanel } from "./WorkflowsPanel";
+import { SpaceSwitcher } from "./SpaceSwitcher";
 import { ConnectionsPanel } from "./ConnectionsPanel";
 import { RunPanel } from "./RunPanel";
 import {
@@ -369,6 +370,8 @@ export function App() {
       <div className="p-2 pb-0">
         <header className="flex items-center gap-3 rounded-2xl border border-border/40 bg-muted/40 px-4 py-2">
           <strong className="text-sm font-semibold">Workflow Builder</strong>
+          <SpaceSwitcher />
+          <Separator orientation="vertical" className="h-5" />
           <Input
             value={name}
             onChange={(e) => setName(e.target.value)}

@@ -284,36 +284,6 @@ app.post("/api/chat", async (c) => {
     messages: modelMessages,
     stopWhen: stepCountIs(20),
     tools: makeTools(spaceId),
-    onError: ({ error }) => {
-      const e = error as Error;
-      console.error(
-        "\n[STREAMTEXT onError]",
-        JSON.stringify(e, Object.getOwnPropertyNames(e ?? {})).slice(0, 2500),
-      );
-    },
-    onStepFinish: (s) => {
-      console.error(
-        "\n[STEP finishReason]",
-        s.finishReason,
-        "| toolCalls:",
-        JSON.stringify(s.toolCalls?.map((t) => t.toolName)),
-        "| warnings:",
-        JSON.stringify(s.warnings),
-        "| providerMeta:",
-        JSON.stringify(s.providerMetadata)?.slice(0, 1500),
-      );
-    },
-    onFinish: (f) => {
-      console.error(
-        "\n[STREAMTEXT onFinish]",
-        "reason:",
-        f.finishReason,
-        "| outTokens:",
-        f.usage?.outputTokens,
-        "| providerMeta:",
-        JSON.stringify(f.providerMetadata)?.slice(0, 1500),
-      );
-    },
   });
 
   return result.toUIMessageStreamResponse({
@@ -386,6 +356,28 @@ app.post("/api/run", async (c) => {
     );
     await stream.writeSSE({ data: "[DONE]" });
   });
+});
+
+app.get("/api/spaces", async (c) => {
+  const ids = await store.spaces();
+  if (!ids.includes("default")) ids.unshift("default");
+  return c.json(ids.map((id) => ({ id })));
+});
+
+app.post("/api/spaces", async (c) => {
+  const body = await c.req.json<{ id?: string }>();
+  let id: string;
+  try {
+    id = assertSpace(body.id ?? "");
+  } catch {
+    return c.json({ error: "invalid space id" }, 400);
+  }
+  await registry.ensureSpace(id);
+  await store.put(id, "_meta", "space", {
+    id,
+    createdAt: new Date().toISOString(),
+  });
+  return c.json({ id });
 });
 
 app.get("/api/connections", async (c) => {

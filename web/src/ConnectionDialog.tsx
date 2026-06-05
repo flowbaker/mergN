@@ -15,7 +15,7 @@ import {
   type ConnectionMeta,
   type SetupGuide,
 } from "./queries";
-import { SPACE_ID } from "./space";
+import { getSpace } from "./space";
 
 function CopyChip({ value }: { value: string }) {
   const [copied, setCopied] = useState(false);
@@ -141,7 +141,7 @@ export function ConnectionDialog({
     setOauthError(null);
     setOauthBusy(true);
     const popup = window.open(
-      `/api/oauth/${provider}/start?space=${encodeURIComponent(SPACE_ID)}`,
+      `/api/oauth/${provider}/start?space=${encodeURIComponent(getSpace())}`,
       "oauth-connect",
       "width=620,height=760",
     );

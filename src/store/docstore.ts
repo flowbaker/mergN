@@ -2,6 +2,7 @@ import { mkdir, readdir, readFile, writeFile, unlink } from "node:fs/promises";
 import { join } from "node:path";
 
 export interface DocStore {
+  spaces(): Promise<string[]>;
   list(spaceId: string, collection: string): Promise<Record<string, unknown>[]>;
   get(
     spaceId: string,
@@ -34,6 +35,17 @@ export class FileStore implements DocStore {
   private safe(id: string): string {
     if (!SAFE.test(id)) throw new Error("invalid id");
     return id;
+  }
+
+  async spaces(): Promise<string[]> {
+    try {
+      const entries = await readdir(this.root, { withFileTypes: true });
+      return entries
+        .filter((e) => e.isDirectory() && SAFE.test(e.name))
+        .map((e) => e.name);
+    } catch {
+      return [];
+    }
   }
 
   async list(

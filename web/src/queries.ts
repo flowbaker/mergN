@@ -71,6 +71,30 @@ export function fetchWorkflow(id: string): Promise<SavedWorkflow> {
   return json<SavedWorkflow>(`/api/workflows/${id}`);
 }
 
+export interface SpaceMeta {
+  id: string;
+}
+
+export function useSpaces() {
+  return useQuery({
+    queryKey: ["spaces"],
+    queryFn: () => json<SpaceMeta[]>("/api/spaces"),
+  });
+}
+
+export function useCreateSpace() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      json<SpaceMeta>("/api/spaces", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["spaces"] }),
+  });
+}
+
 export interface ConnectionMeta {
   id: string;
   provider: string;

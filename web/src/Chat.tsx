@@ -211,15 +211,15 @@ export function Chat({
               <div
                 key={m.id}
                 className={cn(
-                  "flex flex-col gap-1.5",
+                  "flex min-w-0 max-w-full flex-col gap-1.5",
                   isUser ? "items-end" : "items-start",
                 )}
               >
                 <div
                   className={cn(
                     isUser
-                      ? "max-w-[85%] rounded-2xl rounded-br-md border border-border/60 bg-secondary px-3.5 py-2 text-[14px] leading-relaxed text-secondary-foreground shadow-sm"
-                      : "w-full text-foreground/90",
+                      ? "max-w-[85%] break-words rounded-2xl rounded-br-md border border-border/60 bg-secondary px-3.5 py-2 text-[14px] leading-relaxed text-secondary-foreground shadow-sm [overflow-wrap:anywhere]"
+                      : "w-full min-w-0 overflow-hidden text-foreground/90",
                   )}
                 >
                   {m.parts.map((part, i) => {
@@ -243,7 +243,7 @@ export function Chat({
                       return (
                         <div
                           key={i}
-                          className="my-1 flex w-fit items-center gap-2 rounded-lg border border-border/50 bg-muted/40 px-2 py-1 font-mono text-[11px] text-muted-foreground"
+                          className="my-1 flex w-fit max-w-full items-center gap-2 rounded-lg border border-border/50 bg-muted/40 px-2 py-1 font-mono text-[11px] text-muted-foreground"
                         >
                           <span
                             className={cn(
@@ -251,9 +251,13 @@ export function Chat({
                               done ? "bg-emerald-500" : "bg-amber-500 animate-pulse",
                             )}
                           />
-                          <span>{part.type.replace("tool-", "")}</span>
+                          <span className="shrink-0">
+                            {part.type.replace("tool-", "")}
+                          </span>
                           {label && (
-                            <span className="text-foreground/70">{label}</span>
+                            <span className="truncate text-foreground/70">
+                              {label}
+                            </span>
                           )}
                         </div>
                       );

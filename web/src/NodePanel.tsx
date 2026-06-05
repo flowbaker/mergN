@@ -117,11 +117,11 @@ export function NodePanel({
               </span>
             </div>
             {func.summary && (
-              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+              <p className="mt-1 break-words text-xs leading-relaxed text-muted-foreground">
                 {func.summary}
               </p>
             )}
-            <div className="mt-1.5 font-mono text-[10px] text-muted-foreground/60">
+            <div className="mt-1.5 truncate font-mono text-[10px] text-muted-foreground/60">
               {func.id} · v{func.version}
             </div>
           </div>
@@ -167,10 +167,10 @@ export function NodePanel({
               {configPorts.map((p) => (
                 <div key={p.name} className="space-y-1">
                   <label className="flex items-center gap-2 text-xs">
-                    <span className="font-medium">{p.name}</span>
+                    <span className="min-w-0 truncate font-medium">{p.name}</span>
                     <TypePill>{p.type}</TypePill>
                     {!p.required && (
-                      <span className="text-[10px] text-muted-foreground/60">
+                      <span className="shrink-0 text-[10px] text-muted-foreground/60">
                         optional
                       </span>
                     )}
@@ -198,12 +198,12 @@ export function NodePanel({
                   key={p.name}
                   className="flex items-center gap-2 rounded-lg border border-border/40 bg-card px-2.5 py-1.5"
                 >
-                  <span className="font-mono text-xs text-foreground/90">
+                  <span className="min-w-0 flex-1 truncate font-mono text-xs text-foreground/90">
                     {p.name}
                   </span>
                   <TypePill>{p.type}</TypePill>
                   {!p.required && (
-                    <span className="ml-auto text-[10px] text-muted-foreground/60">
+                    <span className="shrink-0 text-[10px] text-muted-foreground/60">
                       optional
                     </span>
                   )}
