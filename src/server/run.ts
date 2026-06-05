@@ -22,8 +22,14 @@ import {
   InMemoryQueue,
   InMemoryFuncRegistry,
 } from "../engine/index";
-import { buildClientWithSecret, getProvider } from "../providers/registry";
-import { resolveProviderSecret } from "./connections";
+import type { Registry } from "../providers/registry";
+import type { Connections } from "./connections";
+
+export interface RunDeps {
+  spaceId: string;
+  registry: Registry;
+  connections: Connections;
+}
 
 class NotifyingRunLog implements RunLogStore {
   private records: StepRecord[] = [];
@@ -143,12 +149,13 @@ function toNode(
       continue;
     }
     const w = wires.find((x) => x.to === f.id && x.toInput === p.name);
-    const path = w
-      ? w.fromOutput
+    if (!w) continue;
+    bindings[p.name] = {
+      mode: "ref",
+      path: w.fromOutput
         ? `${w.from}.output.${w.fromOutput}`
-        : `${w.from}.output`
-      : `trigger.output.${p.name}`;
-    bindings[p.name] = { mode: "ref", path };
+        : `${w.from}.output`,
+    };
   }
   const connections: Record<string, string> = {};
   if (!f.pure) for (const r of f.requires) connections[r.name] = r.provider;
@@ -182,22 +189,27 @@ const stubClient: ProviderClient = new Proxy(
   { get: () => async () => "stubbed" },
 );
 
-class Connections implements ConnectionResolver {
+class ConnectionsResolver implements ConnectionResolver {
+  constructor(private deps: RunDeps) {}
   async inject(node: FuncNode): Promise<Record<string, ProviderClient>> {
+    const { spaceId, registry, connections } = this.deps;
     const clients: Record<string, ProviderClient> = {};
     for (const [name, provider] of Object.entries(node.connections)) {
-      let secret = await resolveProviderSecret(provider);
+      let secret = await connections.getAccessToken(spaceId, provider);
       if (!secret) {
-        const spec = getProvider(provider);
+        const spec = registry.getProvider(spaceId, provider);
         if (spec?.env) secret = process.env[spec.env] ?? null;
       }
-      clients[name] = buildClientWithSecret(provider, secret ?? undefined) ?? stubClient;
+      clients[name] =
+        registry.buildClientWithSecret(spaceId, provider, secret ?? undefined) ??
+        stubClient;
     }
     return clients;
   }
 }
 
 export async function runWorkflow(
+  deps: RunDeps,
   funcs: RunFunc[],
   wires: RunWire[],
   input: Record<string, unknown>,
@@ -218,7 +230,7 @@ export async function runWorkflow(
   const worker = new Worker(
     workflow,
     registry,
-    new Connections(),
+    new ConnectionsResolver(deps),
     new EvalRuntime(),
     log,
     queue,
@@ -247,6 +259,7 @@ export async function runWorkflow(
       await worker.process(current);
     } catch (e) {
       const node = nodes.find((n) => n.nodeId === current.nodeId);
+      const prev = await log.getStep(runId, current.nodeId);
       await log.append({
         runId,
         nodeId: current.nodeId,
@@ -254,7 +267,7 @@ export async function runWorkflow(
         funcVersion: node?.funcVersion ?? 1,
         attempt: 1,
         status: "failed",
-        resolvedInput: {},
+        resolvedInput: prev?.resolvedInput ?? {},
         error: e instanceof Error ? e.message : String(e),
       });
     }

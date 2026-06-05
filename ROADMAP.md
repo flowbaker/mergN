@@ -58,6 +58,20 @@ End to end: describe in chat → nodes appear → save → run → real Slack me
 4. **Richer wiring** — wires currently become ref bindings only. Add `dependsOn`
    (ordering-only edges) and type-checking on connect (output schema vs input
    port); offer an AI-authored adapter when types do not match.
+8. **Trigger as a first-class node** — Phase 1 DONE. The trigger is no longer a
+   virtual source with implicit `trigger.output.<name>` matching (that silently
+   failed when AI input names didn't match the user's keys, e.g. amount vs
+   amount_cents). Now: a 'trigger' node carries the user's input; func inputs
+   bind ONLY via explicit wires (from an upstream func OR from the trigger).
+   run.ts dropped the implicit fallback; the agent wires `trigger.<field> →
+   step.input` explicitly (system prompt); the canvas renders a Trigger node
+   (TriggerNode.tsx) whose fields are derived from the wires drawn from it, with
+   edges to the steps. Phase 2: MULTIPLE triggers (a flow can have several entry
+   points, n8n-style) — fire one per run, run the reachable subgraph, per-trigger
+   input. Unbound-input warning DONE: a func node shows "⚠ unwired: <names>" for
+   any required input with no wire and no config value (the orphan/disconnected
+   step the AI sometimes leaves); the agent system prompt also now insists every
+   required input be wired and no step left disconnected.
 5. **Real connections / auth** — API-key path DONE: `Vault` interface
    (`src/store/vault.ts`, DocVault over the store "secrets" collection — swap for
    encrypted/KMS later) + `connections` (DocStore "connections"); a connection
@@ -83,6 +97,38 @@ End to end: describe in chat → nodes appear → save → run → real Slack me
    API-key/bearer services (user pastes a key); OAuth needs a pre-registered app
    (human boundary). Registry becomes layered: hand-written seeds + per-workspace
    AI-written. Product angle: the workspace accumulates integrations on demand.
+   REPAIR DONE (reactive): when a run step fails with a provider error, RunPanel
+   shows a "repair provider" button → POST /api/providers/:id/repair feeds the
+   error + current clientSource to the AI, which fixes it (keeping id + method
+   names), re-registers + persists; user re-runs. Verified on the real Stripe
+   "Invalid array" bug — the AI added a recursive form-encoder. NEXT (proactive
+   smoke test): generate a safe read call per provider, run it on Connect (we
+   have the credential then) to verify auth/encoding early, auto-repair on fail;
+   eventually auto-repair-and-retry inside a run as an opt-in.
+
+9. **Plan-first workflow construction (design_workflow)** — DONE. Root cause of
+   bad/incoherent graphs was the agent building greedily: authoring funcs in
+   isolation then wiring as an afterthought → inconsistent field names (amount vs
+   amount_cents), missing wires, orphan steps. Fix: a single `design_workflow`
+   tool whose input is the COMPLETE plan (`src/agent/workflow-designer.ts`,
+   `planZ`): trigger fields + every step with id/title/effectful/provider/intent,
+   its inputs (each input's source = fromTrigger field OR fromStep+fromOutput),
+   and outputs. The server then builds DETERMINISTICALLY: ensures providers exist
+   (creates AI-written ones if missing), authors each step BODY against the
+   planned inputs/outputs (authorStepBody), and derives ALL wires from the plan —
+   no LLM wiring. Result: coherent DAG, consistent names, no orphans, every input
+   sourced. The agent designs (the hard part); wiring is mechanical. author_func/
+   wire remain for small edits. Verified: a Stripe→Stripe→Slack build produced a
+   fully-wired coherent graph in one call.
+   REFINED: the agent kept OMITTING required inputs from the plan (slack missing
+   channel; payment missing amount). Fix: inputs are now DERIVED FROM THE BODY,
+   not declared in the plan. The plan carries only each step's intent, outputs,
+   and deps (inputs from an upstream step). authorStepBody writes the body (it
+   knows from the apiDoc the provider needs amount/channel, so it writes
+   input.amount/input.channel); the server extracts input.X refs and wires each
+   from its dep or from trigger.X by name. The agent can no longer omit an input
+   because the BODY decides the input set. Verified: name, amount, channel all
+   present and wired.
 
 ## Key decisions (so we do not relitigate)
 

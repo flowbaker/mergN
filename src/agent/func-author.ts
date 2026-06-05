@@ -1,7 +1,7 @@
 import { generateText, Output } from "ai";
 import { google } from "@ai-sdk/google";
 import { funcDraftZ, type FuncDraft } from "./schemas";
-import { getProvider } from "../providers/registry";
+import type { Registry } from "../providers/registry";
 import type { FuncDefinition, PortDef, Schema } from "../atoms/index";
 
 const SYSTEM = [
@@ -18,6 +18,7 @@ const SYSTEM = [
 ].join("\n");
 
 export interface FuncSpec {
+  spaceId: string;
   intent: string;
   provider?: string;
 }
@@ -28,8 +29,13 @@ export interface AuthoredFuncResult {
   summary: string;
 }
 
-export async function authorFunc(spec: FuncSpec): Promise<AuthoredFuncResult> {
-  const prov = spec.provider ? getProvider(spec.provider) : undefined;
+export async function authorFunc(
+  registry: Registry,
+  spec: FuncSpec,
+): Promise<AuthoredFuncResult> {
+  const prov = spec.provider
+    ? registry.getProvider(spec.spaceId, spec.provider)
+    : undefined;
   const providerNote = prov
     ? `This step uses the '${prov.id}' provider (scopes: ${prov.scopes.join(", ") || "none"}). Connection API: ${prov.apiDoc}`
     : "";

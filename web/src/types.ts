@@ -5,6 +5,19 @@ export interface Wire {
   toInput: string;
 }
 
+export type WorkflowOp =
+  | { key: string; kind: "funcs"; funcs: AuthoredFunc[] }
+  | { key: string; kind: "wires"; wires: Wire[] }
+  | { key: string; kind: "deleteFunc"; id: string }
+  | { key: string; kind: "unwire"; to: string; toInput?: string };
+
+export interface RunStepData {
+  status: string;
+  resolvedInput?: unknown;
+  output?: unknown;
+  error?: string;
+}
+
 export interface AuthoredFunc {
   id: string;
   title: string;

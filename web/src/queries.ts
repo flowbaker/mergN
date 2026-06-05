@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AuthoredFunc, Wire } from "./types";
+import { spaceHeaders } from "./space";
 
 export interface WorkflowMeta {
   id: string;
@@ -29,7 +30,10 @@ export interface SaveInput {
 }
 
 async function json<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, init);
+  const res = await fetch(url, {
+    ...init,
+    headers: { ...spaceHeaders(), ...init?.headers },
+  });
   if (!res.ok) throw new Error(`request failed: ${res.status}`);
   return res.json() as Promise<T>;
 }
@@ -74,6 +78,86 @@ export interface ConnectionMeta {
   createdAt: string;
 }
 
+export interface AuthField {
+  name: string;
+  label: string;
+  type: "text" | "password";
+  placeholder?: string;
+  required?: boolean;
+}
+
+export interface SetupStep {
+  title: string;
+  detail?: string;
+  link?: { label: string; href: string };
+  copyRedirectUrl?: boolean;
+}
+
+export interface SetupGuide {
+  intro?: string;
+  steps: SetupStep[];
+}
+
+export interface ProviderAuth {
+  type: "none" | "apiKey" | "oauth2";
+  name: string;
+  fields?: AuthField[];
+  scopes?: string[];
+  setupGuide?: SetupGuide;
+}
+
+export function useProviderAuth(provider: string) {
+  return useQuery({
+    queryKey: ["provider-auth", provider],
+    queryFn: () => json<ProviderAuth>(`/api/providers/${provider}/auth`),
+  });
+}
+
+export interface OAuthStatus {
+  configured: boolean;
+  needsEndpoints: boolean;
+}
+
+export function useOAuthStatus(provider: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["oauth-config", provider],
+    queryFn: () => json<OAuthStatus>(`/api/providers/${provider}/oauth-config`),
+    enabled,
+  });
+}
+
+export function useSaveOAuthApp(provider: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: {
+      clientId: string;
+      clientSecret: string;
+      authUrl?: string;
+      tokenUrl?: string;
+      scopes?: string[];
+    }) =>
+      json<{ ok: boolean }>(`/api/providers/${provider}/oauth-config`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      }),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: ["oauth-config", provider] }),
+  });
+}
+
+export function useDeleteOAuthApp(provider: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      json<{ ok: boolean }>(`/api/providers/${provider}/oauth-config`, {
+        method: "DELETE",
+      }),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: ["oauth-config", provider] }),
+  });
+}
+
 export function useConnections() {
   return useQuery({
     queryKey: ["connections"],
@@ -100,5 +184,19 @@ export function useDeleteConnection() {
     mutationFn: (id: string) =>
       json<{ ok: boolean }>(`/api/connections/${id}`, { method: "DELETE" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["connections"] }),
+  });
+}
+
+export function useRepairProvider() {
+  return useMutation({
+    mutationFn: (input: { id: string; error: string }) =>
+      json<{ id: string; apiDoc: string }>(
+        `/api/providers/${input.id}/repair`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ error: input.error }),
+        },
+      ),
   });
 }

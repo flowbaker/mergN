@@ -39,7 +39,7 @@ export function RightPanel({
   node: ReactNode;
 }) {
   return (
-    <div className="flex w-[400px] shrink-0 flex-col overflow-hidden rounded-2xl border border-border/40 bg-muted/40 backdrop-blur-xl">
+    <div className="flex w-[400px] shrink-0 flex-col overflow-hidden rounded-2xl border border-border/40 bg-muted/40">
       <div className="flex shrink-0 gap-0.5 p-1">
         <TabButton active={active === "chat"} onClick={() => onTab("chat")}>
           Chat

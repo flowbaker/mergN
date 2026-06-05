@@ -1,7 +1,47 @@
-import { store } from "../store/docstore";
+import type { DocStore } from "../store/docstore";
 import type { ProviderClient } from "../atoms/index";
 
 const COLLECTION = "providers";
+
+export interface AuthField {
+  name: string;
+  label: string;
+  type: "text" | "password";
+  placeholder?: string;
+  required?: boolean;
+}
+
+export type AuthSpec =
+  | { type: "none" }
+  | { type: "apiKey"; fields: AuthField[] }
+  | {
+      type: "oauth2";
+      authUrl: string;
+      tokenUrl: string;
+      scopes: string[];
+      clientIdEnv: string;
+      clientSecretEnv: string;
+    };
+
+export interface SetupStep {
+  title: string;
+  detail?: string;
+  link?: { label: string; href: string };
+  copyRedirectUrl?: boolean;
+}
+
+export interface SetupGuide {
+  intro?: string;
+  steps: SetupStep[];
+}
+
+export interface PublicAuth {
+  type: AuthSpec["type"];
+  name: string;
+  fields?: AuthField[];
+  scopes?: string[];
+  setupGuide?: SetupGuide;
+}
 
 export interface ProviderSpec {
   id: string;
@@ -10,6 +50,8 @@ export interface ProviderSpec {
   keywords: string[];
   apiDoc: string;
   env?: string;
+  auth?: AuthSpec;
+  setupGuide?: SetupGuide;
   egressDomain?: string;
   aiWritten?: boolean;
   createClient: (token: string | undefined) => ProviderClient;
@@ -23,11 +65,12 @@ export interface ProviderDraft {
   egressDomain: string;
   apiDoc: string;
   clientSource: string;
+  setupGuide?: SetupGuide;
 }
 
-const registry = new Map<string, ProviderSpec>();
+const builtins = new Map<string, ProviderSpec>();
 
-registry.set("slack", {
+builtins.set("slack", {
   id: "slack",
   name: "Slack",
   scopes: ["chat:write", "channels:read"],
@@ -62,7 +105,83 @@ registry.set("slack", {
   },
 });
 
-registry.set("http", {
+builtins.set("github", {
+  id: "github",
+  name: "GitHub",
+  scopes: ["repo"],
+  keywords: ["github", "git", "issue", "repo", "repository", "pull request", "pr", "commit"],
+  egressDomain: "api.github.com",
+  apiDoc:
+    "methods: const me = await ctx.connections.<name>.getUser(); returns { login, id, name }. const issue = await ctx.connections.<name>.createIssue({ owner, repo, title, body }); returns { number, url }. Connection: name 'github', provider 'github'.",
+  auth: {
+    type: "oauth2",
+    authUrl: "https://github.com/login/oauth/authorize",
+    tokenUrl: "https://github.com/login/oauth/access_token",
+    scopes: ["repo"],
+    clientIdEnv: "GITHUB_CLIENT_ID",
+    clientSecretEnv: "GITHUB_CLIENT_SECRET",
+  },
+  setupGuide: {
+    intro: "GitHub needs an OAuth App that you own — it takes about a minute.",
+    steps: [
+      {
+        title: "Open GitHub Developer Settings",
+        detail: "Go to Settings → Developer settings → OAuth Apps → New OAuth App.",
+        link: {
+          label: "Open OAuth Apps",
+          href: "https://github.com/settings/developers",
+        },
+      },
+      {
+        title: "Set the Authorization callback URL",
+        detail: "Paste this exact value into the callback URL field.",
+        copyRedirectUrl: true,
+      },
+      {
+        title: "Copy your credentials",
+        detail:
+          "Copy the Client ID, then click 'Generate a new client secret' and copy that too. Paste both below.",
+      },
+    ],
+  },
+  createClient: (token) => {
+    const api = async (
+      path: string,
+      init?: RequestInit,
+    ): Promise<Record<string, unknown>> => {
+      const res = await fetch(`https://api.github.com${path}`, {
+        ...init,
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/vnd.github+json",
+          "User-Agent": "workflow-builder",
+          ...(init?.headers ?? {}),
+        },
+      });
+      const data = (await res.json()) as Record<string, unknown>;
+      if (!res.ok)
+        throw new Error(`github error: ${(data.message as string) ?? res.status}`);
+      return data;
+    };
+    return {
+      getUser: async () => {
+        const u = await api("/user");
+        return { login: u.login, id: u.id, name: u.name };
+      },
+      createIssue: async (arg: unknown) => {
+        const a = (arg ?? {}) as Record<string, unknown>;
+        const issue = await api(`/repos/${a.owner}/${a.repo}/issues`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title: a.title, body: a.body }),
+        });
+        return { number: issue.number, url: issue.html_url };
+      },
+    };
+  },
+});
+
+builtins.set("http", {
   id: "http",
   name: "HTTP",
   scopes: [],
@@ -117,6 +236,7 @@ function specFromDraft(d: ProviderDraft): ProviderSpec {
     keywords: d.keywords,
     apiDoc: d.apiDoc,
     env: d.authEnv || undefined,
+    setupGuide: d.setupGuide,
     egressDomain: d.egressDomain,
     aiWritten: true,
     createClient: (token) => {
@@ -127,53 +247,131 @@ function specFromDraft(d: ProviderDraft): ProviderSpec {
   };
 }
 
-export function registerProviderFromDraft(draft: ProviderDraft): ProviderSpec {
-  const spec = specFromDraft(draft);
-  registry.set(spec.id, spec);
-  return spec;
+export function authOf(spec: ProviderSpec): AuthSpec {
+  if (spec.auth) return spec.auth;
+  if (spec.env)
+    return {
+      type: "apiKey",
+      fields: [
+        { name: "key", label: "API key", type: "password", required: true },
+      ],
+    };
+  return { type: "none" };
 }
 
-export async function persistProvider(draft: ProviderDraft): Promise<void> {
-  await store.put(COLLECTION, draft.id, draft as unknown as Record<string, unknown>);
+export function publicAuth(spec: ProviderSpec): PublicAuth {
+  const auth = authOf(spec);
+  const guide = spec.setupGuide;
+  if (auth.type === "apiKey")
+    return { type: "apiKey", name: spec.name, fields: auth.fields, setupGuide: guide };
+  if (auth.type === "oauth2")
+    return { type: "oauth2", name: spec.name, scopes: auth.scopes, setupGuide: guide };
+  return { type: "none", name: spec.name, setupGuide: guide };
 }
 
-export async function loadPersistedProviders(): Promise<void> {
-  const docs = (await store.list(COLLECTION)) as unknown as ProviderDraft[];
-  for (const draft of docs) {
-    try {
-      registerProviderFromDraft(draft);
-    } catch {
-      continue;
+export interface Registry {
+  ensureSpace(spaceId: string): Promise<void>;
+  getProvider(spaceId: string, id: string): ProviderSpec | undefined;
+  searchProviders(spaceId: string, query: string): ProviderSpec[];
+  registerProviderFromDraft(spaceId: string, draft: ProviderDraft): ProviderSpec;
+  persistProvider(spaceId: string, draft: ProviderDraft): Promise<void>;
+  getProviderDraft(spaceId: string, id: string): Promise<ProviderDraft | null>;
+  needsAuth(spaceId: string, providerId: string): boolean;
+  buildClientWithSecret(
+    spaceId: string,
+    providerId: string,
+    secret: string | undefined,
+  ): ProviderClient | null;
+}
+
+export function createRegistry(store: DocStore): Registry {
+  const spaceDrafts = new Map<string, Map<string, ProviderSpec>>();
+  const loaded = new Set<string>();
+
+  function draftsFor(spaceId: string): Map<string, ProviderSpec> {
+    let m = spaceDrafts.get(spaceId);
+    if (!m) {
+      m = new Map();
+      spaceDrafts.set(spaceId, m);
     }
+    return m;
   }
-}
 
-export function getProvider(id: string): ProviderSpec | undefined {
-  return registry.get(id);
-}
+  function getProvider(spaceId: string, id: string): ProviderSpec | undefined {
+    return draftsFor(spaceId).get(id) ?? builtins.get(id);
+  }
 
-export function searchProviders(query: string): ProviderSpec[] {
-  const q = query.toLowerCase().trim();
-  const all = [...registry.values()];
-  if (!q) return all;
-  const terms = q.split(/\s+/);
-  return all.filter((p) => {
-    const hay = [p.id, p.name, p.apiDoc, ...p.keywords].join(" ").toLowerCase();
-    return terms.some((t) => hay.includes(t));
-  });
-}
+  function registerProviderFromDraft(
+    spaceId: string,
+    draft: ProviderDraft,
+  ): ProviderSpec {
+    const spec = specFromDraft(draft);
+    draftsFor(spaceId).set(spec.id, spec);
+    return spec;
+  }
 
-export function needsAuth(providerId: string): boolean {
-  const spec = registry.get(providerId);
-  return !!spec?.env;
-}
+  return {
+    getProvider,
+    registerProviderFromDraft,
 
-export function buildClientWithSecret(
-  providerId: string,
-  secret: string | undefined,
-): ProviderClient | null {
-  const spec = registry.get(providerId);
-  if (!spec) return null;
-  if (spec.env && !secret) return null;
-  return spec.createClient(secret);
+    async ensureSpace(spaceId) {
+      if (loaded.has(spaceId)) return;
+      loaded.add(spaceId);
+      const docs = (await store.list(
+        spaceId,
+        COLLECTION,
+      )) as unknown as ProviderDraft[];
+      const m = draftsFor(spaceId);
+      for (const draft of docs) {
+        if (builtins.has(draft.id)) continue;
+        try {
+          m.set(draft.id, specFromDraft(draft));
+        } catch {
+          continue;
+        }
+      }
+    },
+
+    searchProviders(spaceId, query) {
+      const q = query.toLowerCase().trim();
+      const all = [...builtins.values(), ...draftsFor(spaceId).values()];
+      if (!q) return all;
+      const terms = q.split(/\s+/);
+      return all.filter((p) => {
+        const hay = [p.id, p.name, p.apiDoc, ...p.keywords]
+          .join(" ")
+          .toLowerCase();
+        return terms.some((t) => hay.includes(t));
+      });
+    },
+
+    async persistProvider(spaceId, draft) {
+      await store.put(
+        spaceId,
+        COLLECTION,
+        draft.id,
+        draft as unknown as Record<string, unknown>,
+      );
+    },
+
+    async getProviderDraft(spaceId, id) {
+      return (await store.get(
+        spaceId,
+        COLLECTION,
+        id,
+      )) as unknown as ProviderDraft | null;
+    },
+
+    needsAuth(spaceId, providerId) {
+      const spec = getProvider(spaceId, providerId);
+      return !!spec && authOf(spec).type !== "none";
+    },
+
+    buildClientWithSecret(spaceId, providerId, secret) {
+      const spec = getProvider(spaceId, providerId);
+      if (!spec) return null;
+      if (authOf(spec).type !== "none" && !secret) return null;
+      return spec.createClient(secret);
+    },
+  };
 }

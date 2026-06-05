@@ -2,11 +2,39 @@ import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { ArrowLeftRight, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+interface Port {
+  name: string;
+  bound?: boolean;
+}
+
 interface FuncNodeData {
   title: string;
   summary: string;
   pure: boolean;
   status?: string;
+  needsConnection?: boolean;
+  inputs: Port[];
+  outputs: string[];
+}
+
+function PortDot({
+  id,
+  type,
+  tone,
+}: {
+  id: string;
+  type: "target" | "source";
+  tone: string;
+}) {
+  return (
+    <Handle
+      id={id}
+      type={type}
+      position={type === "target" ? Position.Left : Position.Right}
+      style={{ position: "relative", transform: "none", top: "auto", left: "auto", right: "auto" }}
+      className={cn("!h-2.5 !w-2.5 !rounded-full !border-2 !bg-background", tone)}
+    />
+  );
 }
 
 export function FuncNode({ data, selected }: NodeProps) {
@@ -30,43 +58,73 @@ export function FuncNode({ data, selected }: NodeProps) {
         statusRing,
       )}
     >
-      <Handle
-        type="target"
-        position={Position.Left}
-        className="!h-2.5 !w-2.5 !border-2 !bg-background"
-      />
-
-      <div className="flex gap-2 rounded-[1.2rem] bg-background p-2 font-medium ring-1 ring-border">
-        <div
-          className={cn(
-            "flex items-center justify-center rounded-2xl p-2",
-            d.pure
-              ? "bg-emerald-500/15 text-emerald-400"
-              : "bg-blue-500/15 text-blue-400",
-          )}
-        >
-          {d.pure ? (
-            <ArrowLeftRight className="h-4 w-4" />
-          ) : (
-            <Zap className="h-4 w-4" />
-          )}
+      <div className="overflow-hidden rounded-[1.2rem] bg-background ring-1 ring-border">
+        <div className="flex gap-2 p-2 font-medium">
+          <div
+            className={cn(
+              "flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl",
+              d.pure
+                ? "bg-emerald-500/15 text-emerald-400"
+                : "bg-blue-500/15 text-blue-400",
+            )}
+          >
+            {d.pure ? (
+              <ArrowLeftRight className="h-4 w-4" />
+            ) : (
+              <Zap className="h-4 w-4" />
+            )}
+          </div>
+          <div className="flex min-w-0 flex-1 flex-col items-start gap-1 px-1 py-0.5">
+            <h3 className="w-full truncate text-base font-medium leading-none">
+              {d.title}
+            </h3>
+            <p className="w-full truncate text-xs leading-tight text-muted-foreground">
+              {d.summary}
+            </p>
+          </div>
         </div>
 
-        <div className="flex min-w-0 flex-1 flex-col items-start gap-1.5 px-2 py-1">
-          <h3 className="w-full truncate text-base font-medium leading-none">
-            {d.title}
-          </h3>
-          <p className="w-full truncate text-sm leading-none text-muted-foreground">
-            {d.summary}
-          </p>
-        </div>
+        {(d.inputs.length > 0 || d.outputs.length > 0) && (
+          <div className="flex gap-2 border-t border-border/60 px-1.5 py-1.5">
+            <div className="flex flex-1 flex-col gap-0.5">
+              {d.inputs.map((p) => (
+                <div key={p.name} className="flex h-6 items-center gap-1.5">
+                  <PortDot
+                    id={p.name}
+                    type="target"
+                    tone={p.bound ? "!border-[#6ea8ff]" : "!border-rose-400"}
+                  />
+                  <span
+                    className={cn(
+                      "truncate font-mono text-[11px]",
+                      p.bound ? "text-foreground/80" : "text-rose-300/90",
+                    )}
+                  >
+                    {p.name}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <div className="flex flex-1 flex-col gap-0.5">
+              {d.outputs.map((o) => (
+                <div key={o} className="flex h-6 items-center justify-end gap-1.5">
+                  <span className="truncate font-mono text-[11px] text-emerald-300/80">
+                    {o}
+                  </span>
+                  <PortDot id={o} type="source" tone="!border-emerald-400" />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
-      <Handle
-        type="source"
-        position={Position.Right}
-        className="!h-2.5 !w-2.5 !border-2 !bg-background"
-      />
+      {d.needsConnection && (
+        <div
+          title="needs connection"
+          className="absolute -right-1 -top-1 size-2.5 rounded-full bg-amber-500 ring-2 ring-background"
+        />
+      )}
     </div>
   );
 }

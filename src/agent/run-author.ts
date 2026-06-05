@@ -1,9 +1,14 @@
+import { join } from "node:path";
 import { authorFunc } from "./func-author";
+import { createRegistry } from "../providers/registry";
+import { FileStore } from "../store/docstore";
 
 async function main(): Promise<void> {
   console.log("Authoring func with AI...\n");
 
-  const { def } = await authorFunc({
+  const registry = createRegistry(new FileStore(join(process.cwd(), "data", "spaces")));
+  const { def } = await authorFunc(registry, {
+    spaceId: "default",
     intent:
       "Given a signup object ({firstName, lastName, email, plan}), produce a readable Slack message. Only transform data, do not call any external service.",
   });

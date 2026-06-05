@@ -10,35 +10,28 @@ import {
 } from "ai";
 import { google } from "@ai-sdk/google";
 import { z } from "zod";
+import { join } from "node:path";
 import { authorFunc } from "../agent/func-author";
-import {
-  listWorkflows,
-  getWorkflow,
-  saveWorkflow,
-  deleteWorkflow,
-} from "./store";
+import { createWorkflowStore } from "./store";
 import { runWorkflow } from "./run";
-import {
-  searchProviders,
-  registerProviderFromDraft,
-  persistProvider,
-  loadPersistedProviders,
-} from "../providers/registry";
-import { authorProvider } from "../agent/provider-author";
-import {
-  listConnections,
-  createApiKeyConnection,
-  deleteConnection,
-} from "./connections";
+import { createRegistry, publicAuth } from "../providers/registry";
+import { FileStore, assertSpace } from "../store/docstore";
+import { DocVault } from "../store/vault";
+import { authorProvider, repairProvider } from "../agent/provider-author";
+import { designWorkflow, planWorkflow } from "../agent/workflow-designer";
+import { createConnections } from "./connections";
+import { createOAuth } from "./oauth";
 import type { FuncDefinition } from "../atoms/index";
 
 const SYSTEM = [
   "You are a workflow builder assistant for an AI-native automation product.",
-  "The user describes automations in natural language; you help them design the workflow.",
-  "A workflow is made of typed 'funcs' (steps) wired together.",
-  "For a PURE data transform (no external service), call author_func.",
-  "For a step that uses an external service: FIRST call search_providers. If a provider matches, call author_func with that provider id. If NONE matches, call create_provider with the service name to generate one, then call author_func with the new provider id.",
-  "For a multi-step workflow: author every step first, then connect them with the wire tool (an upstream output field into a downstream input, using the exact ids and names you created).",
+  "A workflow has a built-in 'trigger' node (carrying the user's run-time input) and typed steps (funcs) wired together. A step input gets its value EITHER from a trigger field OR from an upstream step's output. There is no implicit binding.",
+  "PRIMARY — to build a workflow from the user's description, call design_workflow ONCE. Give every step: id, title, summary, effectful (true if it calls an external service), provider (for external services, e.g. 'stripe','slack'), a DETAILED intent (say exactly what values the step needs and what it returns), its outputs, and deps — the inputs that come from an UPSTREAM step's output (input name, fromStep id, fromOutput field).",
+  "You do NOT list trigger inputs and you do NOT write wires. The server writes each step body from your intent, reads which inputs the body uses, takes any input not provided by a dep from the user's trigger input by that name, and wires everything deterministically. So: make each intent precise (especially the values an external call needs, e.g. a Slack message needs a channel and the text), and declare inter-step deps with consistent field names. For external services just name the provider; the server creates it if missing.",
+  "EDITS — when a workflow already exists (its live state is given below the system prompt), do NOT call design_workflow. Make the smallest change with the edit tools: author_func + wire to ADD a step; update_func to CHANGE a step in place (same id, new body); delete_func to REMOVE a step (and its wires); wire/unwire to reconnect or disconnect an input. Target every step by its exact [id] from the current state, and reuse the exact field names shown. After changing a step, re-wire any inputs/outputs that changed. search_providers/create_provider support the add path.",
+  "When the user reports a failed step, FIRST diagnose whether it is a provider bug or a workflow/flow problem — do not jump to repairing the provider:",
+  "- Look at the step's resolved input. If it is empty ({}) or missing the field the error is about (e.g. the error says 'amount required' and the resolved input has no amount), then the step is NOT receiving its data. That is a FLOW problem — a missing input declaration on the func, or a missing wire / missing trigger value — NOT the provider. In that case do NOT call repair_provider. Tell the user clearly that the problem is in the flow, point at the missing input, and suggest the fix (declare the input on the step, or wire it / add it to the trigger input).",
+  "- Only if the resolved input clearly contains the data but the provider still rejects it, call repair_provider (with provider id, error, call site, sample input) and say what you fixed.",
   "Keep replies short. After building, briefly summarize the steps and how they connect.",
 ].join("\n");
 
@@ -64,7 +57,30 @@ function funcToWire(func: FuncDefinition, title: string, summary: string) {
   };
 }
 
-const tools = {
+const store = new FileStore(join(process.cwd(), "data", "spaces"));
+const vault = new DocVault(store);
+const registry = createRegistry(store);
+const oauth = createOAuth({ store, vault, registry });
+const connections = createConnections({ store, vault, oauth });
+const workflows = createWorkflowStore(store);
+
+function makeTools(spaceId: string) {
+  return {
+  design_workflow: tool({
+    description:
+      "Design and BUILD an entire workflow in one call from the user's goal. Pass the goal as a single clear sentence naming the services and the data involved (e.g. 'create a stripe customer from email and name, charge them, then post a receipt to a slack channel'). The server plans the steps, writes their bodies, and wires everything deterministically. Use this to build a workflow from scratch.",
+    inputSchema: z.object({
+      goal: z
+        .string()
+        .describe(
+          "the automation to build, restated as one clear sentence including the services and the data involved",
+        ),
+    }),
+    execute: async ({ goal }) => {
+      const plan = await planWorkflow(goal);
+      return designWorkflow(registry, spaceId, plan);
+    },
+  }),
   search_providers: tool({
     description:
       "Search available external providers by keyword. Returns matches with their connection API. If nothing matches, use create_provider.",
@@ -72,7 +88,7 @@ const tools = {
       query: z.string().describe("keywords, e.g. 'slack message' or 'notion page'"),
     }),
     execute: async ({ query }) =>
-      searchProviders(query).map((p) => ({
+      registry.searchProviders(spaceId, query).map((p) => ({
         id: p.id,
         name: p.name,
         scopes: p.scopes,
@@ -91,8 +107,8 @@ const tools = {
     }),
     execute: async ({ service, docsUrl }) => {
       const draft = await authorProvider(service, docsUrl);
-      registerProviderFromDraft(draft);
-      await persistProvider(draft);
+      registry.registerProviderFromDraft(spaceId, draft);
+      await registry.persistProvider(spaceId, draft);
       return {
         id: draft.id,
         name: draft.name,
@@ -115,8 +131,84 @@ const tools = {
         .describe("provider id, if this step calls an external service"),
     }),
     execute: async ({ intent, provider }) => {
-      const r = await authorFunc({ intent, provider });
+      const r = await authorFunc(registry, { spaceId, intent, provider });
       return funcToWire(r.def, r.title, r.summary);
+    },
+  }),
+  update_func: tool({
+    description:
+      "Edit an EXISTING step in place: re-author its body from a new intent while KEEPING its id, so it overwrites the step. Use this to change what a step does. Pass the step's current [id], the new intent, and (for external steps) the provider id. After editing, check whether its inputs/outputs changed and re-wire with wire/unwire if needed.",
+    inputSchema: z.object({
+      id: z
+        .string()
+        .describe("the existing step id to overwrite, e.g. 'charge_customer'"),
+      intent: z
+        .string()
+        .describe("the new behavior for the step, in one sentence"),
+      provider: z
+        .string()
+        .optional()
+        .describe("provider id if this step calls an external service"),
+    }),
+    execute: async ({ id, intent, provider }) => {
+      const r = await authorFunc(registry, { spaceId, intent, provider });
+      return funcToWire({ ...r.def, id }, r.title, r.summary);
+    },
+  }),
+  delete_func: tool({
+    description:
+      "Remove a step from the workflow entirely, together with every wire into or out of it. Pass the step's [id].",
+    inputSchema: z.object({
+      id: z.string().describe("the step id to delete"),
+    }),
+    execute: async ({ id }) => ({ id, deleted: true }),
+  }),
+  unwire: tool({
+    description:
+      "Disconnect a step's input by removing the wire feeding it. Pass the target step id and optionally the specific input name; omit the input name to remove ALL incoming wires of that step.",
+    inputSchema: z.object({
+      targetFunc: z
+        .string()
+        .describe("the step id whose incoming wire should be removed"),
+      inputName: z
+        .string()
+        .optional()
+        .describe(
+          "the specific input to disconnect; omit to remove all incoming wires",
+        ),
+    }),
+    execute: async ({ targetFunc, inputName }) => ({
+      to: targetFunc,
+      toInput: inputName,
+    }),
+  }),
+  repair_provider: tool({
+    description:
+      "Repair an existing provider when a step failed because of a provider bug. Pass the provider id, the error, and (when available) the call site (how the step calls the provider) and the sample input values.",
+    inputSchema: z.object({
+      providerId: z.string().describe("the provider id to repair, e.g. 'stripe'"),
+      error: z.string().describe("the error message from the failed step"),
+      callSite: z
+        .string()
+        .optional()
+        .describe("how the failing step calls the provider (the step's code)"),
+      sampleInput: z
+        .string()
+        .optional()
+        .describe("the failing step's resolved input values, as JSON"),
+    }),
+    execute: async ({ providerId, error, callSite, sampleInput }) => {
+      const draft = await registry.getProviderDraft(spaceId, providerId);
+      if (!draft) return { ok: false, message: `provider '${providerId}' not found` };
+      const { draft: repaired, changeNote } = await repairProvider(
+        draft,
+        error,
+        callSite,
+        sampleInput,
+      );
+      registry.registerProviderFromDraft(spaceId, repaired);
+      await registry.persistProvider(spaceId, repaired);
+      return { ok: true, providerId: repaired.id, changeNote };
     },
   }),
   wire: tool({
@@ -141,20 +233,87 @@ const tools = {
       toInput: inputName ?? "",
     }),
   }),
-};
+  };
+}
 
-const app = new Hono();
+function oauthResultPage(ok: boolean, detail: string): string {
+  const payload = JSON.stringify({ type: "oauth-result", ok, detail });
+  const title = ok ? "Connected" : "Connection failed";
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${title}</title>
+<style>body{font-family:ui-sans-serif,system-ui;background:#1a1a1e;color:#eee;display:flex;align-items:center;justify-content:center;height:100vh;margin:0}div{text-align:center}</style></head>
+<body><div><h3>${title}</h3><p style="color:#999">${ok ? detail : detail.replace(/</g, "&lt;")}</p><p style="color:#666;font-size:13px">You can close this window.</p></div>
+<script>try{window.opener&&window.opener.postMessage(${payload},"*")}catch(e){}setTimeout(function(){window.close()},${ok ? 600 : 2500})</script>
+</body></html>`;
+}
+
+const app = new Hono<{ Variables: { spaceId: string } }>();
+
+app.use("/api/*", async (c, next) => {
+  const raw = c.req.header("x-space-id") || "default";
+  let spaceId: string;
+  try {
+    spaceId = assertSpace(raw);
+  } catch {
+    return c.json({ error: "invalid space id" }, 400);
+  }
+  await registry.ensureSpace(spaceId);
+  c.set("spaceId", spaceId);
+  await next();
+});
 
 app.post("/api/chat", async (c) => {
-  const { messages } = await c.req.json<{ messages: UIMessage[] }>();
+  const spaceId = c.get("spaceId");
+  const { messages, workflowState } = await c.req.json<{
+    messages: UIMessage[];
+    workflowState?: string;
+  }>();
   const modelMessages = await convertToModelMessages(messages);
+
+  const system =
+    workflowState && workflowState.trim()
+      ? SYSTEM +
+        "\n\n--- CURRENT WORKFLOW (live state, may be unsaved) ---\n" +
+        workflowState +
+        "\n--- end of current workflow ---\n" +
+        "This is what already exists. For edits, target steps by their [id] and reuse exact field names shown above. Use author_func/wire for small changes; only call design_workflow to build a brand-new workflow from scratch, never for an edit."
+      : SYSTEM;
 
   const result = streamText({
     model: google(process.env.GEMINI_MODEL ?? "gemini-2.5-flash"),
-    system: SYSTEM,
+    system,
     messages: modelMessages,
     stopWhen: stepCountIs(20),
-    tools,
+    tools: makeTools(spaceId),
+    onError: ({ error }) => {
+      const e = error as Error;
+      console.error(
+        "\n[STREAMTEXT onError]",
+        JSON.stringify(e, Object.getOwnPropertyNames(e ?? {})).slice(0, 2500),
+      );
+    },
+    onStepFinish: (s) => {
+      console.error(
+        "\n[STEP finishReason]",
+        s.finishReason,
+        "| toolCalls:",
+        JSON.stringify(s.toolCalls?.map((t) => t.toolName)),
+        "| warnings:",
+        JSON.stringify(s.warnings),
+        "| providerMeta:",
+        JSON.stringify(s.providerMetadata)?.slice(0, 1500),
+      );
+    },
+    onFinish: (f) => {
+      console.error(
+        "\n[STREAMTEXT onFinish]",
+        "reason:",
+        f.finishReason,
+        "| outTokens:",
+        f.usage?.outputTokens,
+        "| providerMeta:",
+        JSON.stringify(f.providerMetadata)?.slice(0, 1500),
+      );
+    },
   });
 
   return result.toUIMessageStreamResponse({
@@ -172,11 +331,11 @@ app.post("/api/chat", async (c) => {
 });
 
 app.get("/api/workflows", async (c) => {
-  return c.json(await listWorkflows());
+  return c.json(await workflows.listWorkflows(c.get("spaceId")));
 });
 
 app.get("/api/workflows/:id", async (c) => {
-  const wf = await getWorkflow(c.req.param("id"));
+  const wf = await workflows.getWorkflow(c.get("spaceId"), c.req.param("id"));
   return wf ? c.json(wf) : c.json({ error: "not found" }, 404);
 });
 
@@ -190,7 +349,7 @@ app.put("/api/workflows/:id", async (c) => {
     positions?: Record<string, { x: number; y: number }>;
     config?: Record<string, Record<string, string>>;
   }>();
-  const wf = await saveWorkflow({
+  const wf = await workflows.saveWorkflow(c.get("spaceId"), {
     id,
     name: body.name ?? "untitled",
     funcs: body.funcs ?? [],
@@ -202,19 +361,21 @@ app.put("/api/workflows/:id", async (c) => {
 });
 
 app.delete("/api/workflows/:id", async (c) => {
-  await deleteWorkflow(c.req.param("id"));
+  await workflows.deleteWorkflow(c.get("spaceId"), c.req.param("id"));
   return c.json({ ok: true });
 });
 
 app.post("/api/run", async (c) => {
+  const spaceId = c.get("spaceId");
   const body = await c.req.json<{
-    funcs?: Parameters<typeof runWorkflow>[0];
-    wires?: Parameters<typeof runWorkflow>[1];
+    funcs?: Parameters<typeof runWorkflow>[1];
+    wires?: Parameters<typeof runWorkflow>[2];
     input?: Record<string, unknown>;
     config?: Record<string, Record<string, string>>;
   }>();
   return streamSSE(c, async (stream) => {
     await runWorkflow(
+      { spaceId, registry, connections },
       body.funcs ?? [],
       body.wires ?? [],
       body.input ?? {},
@@ -228,7 +389,7 @@ app.post("/api/run", async (c) => {
 });
 
 app.get("/api/connections", async (c) => {
-  return c.json(await listConnections());
+  return c.json(await connections.listConnections(c.get("spaceId")));
 });
 
 app.post("/api/connections", async (c) => {
@@ -241,17 +402,99 @@ app.post("/api/connections", async (c) => {
     return c.json({ error: "provider and key required" }, 400);
   }
   return c.json(
-    await createApiKeyConnection(body.provider, body.key, body.account),
+    await connections.createApiKeyConnection(
+      c.get("spaceId"),
+      body.provider,
+      body.key,
+      body.account,
+    ),
   );
 });
 
 app.delete("/api/connections/:id", async (c) => {
-  await deleteConnection(c.req.param("id"));
+  await connections.deleteConnection(c.get("spaceId"), c.req.param("id"));
   return c.json({ ok: true });
 });
 
-await loadPersistedProviders();
+app.get("/api/providers/:id/auth", async (c) => {
+  const spec = registry.getProvider(c.get("spaceId"), c.req.param("id"));
+  if (!spec) return c.json({ error: "provider not found" }, 404);
+  return c.json(publicAuth(spec));
+});
 
-serve({ fetch: app.fetch, port: 8787 }, (info) => {
+app.get("/api/providers/:id/oauth-config", async (c) => {
+  return c.json(await oauth.oauthStatus(c.get("spaceId"), c.req.param("id")));
+});
+
+app.post("/api/providers/:id/oauth-config", async (c) => {
+  const body = await c.req.json<{
+    clientId?: string;
+    clientSecret?: string;
+    authUrl?: string;
+    tokenUrl?: string;
+    scopes?: string[];
+  }>();
+  if (!body.clientId || !body.clientSecret)
+    return c.json({ error: "clientId and clientSecret required" }, 400);
+  await oauth.saveOAuthApp(c.get("spaceId"), c.req.param("id"), {
+    clientId: body.clientId,
+    clientSecret: body.clientSecret,
+    authUrl: body.authUrl,
+    tokenUrl: body.tokenUrl,
+    scopes: body.scopes,
+  });
+  return c.json({ ok: true });
+});
+
+app.delete("/api/providers/:id/oauth-config", async (c) => {
+  await oauth.deleteOAuthApp(c.get("spaceId"), c.req.param("id"));
+  return c.json({ ok: true });
+});
+
+app.get("/api/oauth/:provider/start", async (c) => {
+  try {
+    const spaceId = assertSpace(c.req.query("space") || "default");
+    await registry.ensureSpace(spaceId);
+    const { url } = await oauth.startOAuth(spaceId, c.req.param("provider"));
+    return c.redirect(url);
+  } catch (e) {
+    return c.html(oauthResultPage(false, e instanceof Error ? e.message : "error"));
+  }
+});
+
+app.get("/api/oauth/callback", async (c) => {
+  const code = c.req.query("code");
+  const state = c.req.query("state");
+  const error = c.req.query("error_description") ?? c.req.query("error");
+  if (error) return c.html(oauthResultPage(false, error));
+  if (!code || !state)
+    return c.html(oauthResultPage(false, "missing code or state"));
+  try {
+    const { spaceId, provider, tokens } = await oauth.completeOAuth(state, code);
+    await connections.createOAuthConnection(spaceId, provider, {
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      expiresAt: tokens.expiresAt,
+      scopes: tokens.scopes,
+    });
+    return c.html(oauthResultPage(true, provider));
+  } catch (e) {
+    return c.html(oauthResultPage(false, e instanceof Error ? e.message : "error"));
+  }
+});
+
+app.post("/api/providers/:id/repair", async (c) => {
+  const spaceId = c.get("spaceId");
+  const id = c.req.param("id");
+  const body = await c.req.json<{ error?: string }>();
+  const draft = await registry.getProviderDraft(spaceId, id);
+  if (!draft) return c.json({ error: "provider not found" }, 404);
+  const { draft: repaired, changeNote } = await repairProvider(draft, body.error ?? "");
+  registry.registerProviderFromDraft(spaceId, repaired);
+  await registry.persistProvider(spaceId, repaired);
+  return c.json({ id: repaired.id, changeNote });
+});
+
+serve({ fetch: app.fetch, port: Number(process.env.PORT) || 8787 }, (info) => {
   console.log(`chat server on http://localhost:${info.port}`);
 });

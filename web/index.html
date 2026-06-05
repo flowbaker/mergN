@@ -1,9 +1,17 @@
 <!doctype html>
-<html lang="tr" class="dark">
+<html lang="tr">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Workflow Builder</title>
+    <script>
+      try {
+        document.documentElement.classList.toggle(
+          "dark",
+          localStorage.getItem("theme") !== "light",
+        );
+      } catch (e) {}
+    </script>
   </head>
   <body style="margin: 0">
     <div id="root"></div>

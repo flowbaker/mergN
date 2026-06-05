@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useChat } from "@ai-sdk/react";
-import type { AuthoredFunc, Wire } from "./types";
+import type { AuthoredFunc, Wire, WorkflowOp } from "./types";
+import { Sparkles, ArrowUpRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Markdown } from "./Markdown";
+import { spaceHeaders } from "./space";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface ToolPart {
@@ -11,6 +13,12 @@ interface ToolPart {
   state?: string;
   output?: unknown;
 }
+
+const EXAMPLES = [
+  "When a Stripe payment succeeds, send a receipt to Slack",
+  "Summarize new signups and email me a daily digest",
+  "On a new GitHub issue, post a triage note to Discord",
+];
 
 interface Usage {
   inputTokens?: number;
@@ -23,62 +31,123 @@ function usageOf(metadata: unknown): Usage | undefined {
 }
 
 export function Chat({
-  onFuncs,
-  onWires,
+  onOps,
+  onBuilding,
+  workflowState,
+  onReady,
 }: {
-  onFuncs: (funcs: AuthoredFunc[]) => void;
-  onWires: (wires: Wire[]) => void;
+  onOps: (ops: WorkflowOp[]) => void;
+  onBuilding?: (building: boolean) => void;
+  workflowState?: string;
+  onReady?: (send: (text: string) => void) => void;
 }) {
   const { messages, sendMessage, status } = useChat();
   const [input, setInput] = useState("");
+  const taRef = useRef<HTMLTextAreaElement>(null);
 
-  const authored = useMemo(() => {
-    const out: AuthoredFunc[] = [];
-    const seen = new Set<string>();
-    for (const m of messages) {
-      for (const part of m.parts as ToolPart[]) {
-        const isFuncTool =
-          part.type === "tool-author_func" ||
-          part.type.startsWith("tool-provider_");
-        if (isFuncTool && part.state === "output-available") {
-          const f = part.output as AuthoredFunc;
-          if (f?.id && Array.isArray(f.inputs) && !seen.has(f.id)) {
-            seen.add(f.id);
-            out.push(f);
+  const grow = () => {
+    const el = taRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = Math.min(el.scrollHeight, 208) + "px";
+  };
+
+  const useExample = (text: string) => {
+    setInput(text);
+    requestAnimationFrame(() => {
+      grow();
+      taRef.current?.focus();
+    });
+  };
+
+  const stateRef = useRef("");
+  stateRef.current = workflowState ?? "";
+
+  const send = useCallback(
+    (text: string) =>
+      sendMessage(
+        { text },
+        { headers: spaceHeaders(), body: { workflowState: stateRef.current } },
+      ),
+    [sendMessage],
+  );
+
+  useEffect(() => {
+    onReady?.(send);
+  }, [send, onReady]);
+
+  const ops = useMemo(() => {
+    const out: WorkflowOp[] = [];
+    const isFunc = (o: unknown): o is AuthoredFunc =>
+      !!o &&
+      typeof (o as AuthoredFunc).id === "string" &&
+      Array.isArray((o as AuthoredFunc).inputs);
+    messages.forEach((m) => {
+      (m.parts as ToolPart[]).forEach((part, i) => {
+        if (part.state !== "output-available") return;
+        const key = `${m.id}:${i}`;
+        const o = part.output as Record<string, unknown> | undefined;
+        if (!o) return;
+        switch (part.type) {
+          case "tool-design_workflow": {
+            const dw = o as { funcs?: AuthoredFunc[]; wires?: Wire[] };
+            if (dw.funcs?.length)
+              out.push({ key: `${key}:f`, kind: "funcs", funcs: dw.funcs });
+            if (dw.wires?.length)
+              out.push({ key: `${key}:w`, kind: "wires", wires: dw.wires });
+            break;
           }
+          case "tool-author_func":
+          case "tool-update_func":
+            if (isFunc(o))
+              out.push({ key, kind: "funcs", funcs: [o] });
+            break;
+          case "tool-wire":
+            if (o.from && o.to)
+              out.push({ key, kind: "wires", wires: [o as unknown as Wire] });
+            break;
+          case "tool-delete_func":
+            if (typeof o.id === "string")
+              out.push({ key, kind: "deleteFunc", id: o.id });
+            break;
+          case "tool-unwire":
+            if (typeof o.to === "string")
+              out.push({
+                key,
+                kind: "unwire",
+                to: o.to,
+                toInput:
+                  typeof o.toInput === "string" ? o.toInput : undefined,
+              });
+            break;
         }
-      }
-    }
+      });
+    });
     return out;
   }, [messages]);
 
-  const wires = useMemo(() => {
-    const out: Wire[] = [];
-    const seen = new Set<string>();
+  const building = useMemo(() => {
     for (const m of messages) {
       for (const part of m.parts as ToolPart[]) {
-        if (part.type === "tool-wire" && part.state === "output-available") {
-          const w = part.output as Wire;
-          if (w?.from && w?.to) {
-            const key = `${w.from}.${w.fromOutput}->${w.to}.${w.toInput}`;
-            if (!seen.has(key)) {
-              seen.add(key);
-              out.push(w);
-            }
-          }
+        if (
+          part.type === "tool-design_workflow" &&
+          part.state &&
+          !part.state.startsWith("output")
+        ) {
+          return true;
         }
       }
     }
-    return out;
+    return false;
   }, [messages]);
 
   useEffect(() => {
-    onFuncs(authored);
-  }, [authored, onFuncs]);
+    onOps(ops);
+  }, [ops, onOps]);
 
   useEffect(() => {
-    onWires(wires);
-  }, [wires, onWires]);
+    onBuilding?.(building);
+  }, [building, onBuilding]);
 
   const totalTokens = useMemo(() => {
     let sum = 0;
@@ -89,12 +158,13 @@ export function Chat({
     return sum;
   }, [messages]);
 
-  const submit = (e: React.FormEvent) => {
+  const submit = (e: { preventDefault: () => void }) => {
     e.preventDefault();
     const text = input.trim();
     if (!text) return;
-    sendMessage({ text });
+    send(text);
     setInput("");
+    if (taRef.current) taRef.current.style.height = "auto";
   };
 
   return (
@@ -108,57 +178,98 @@ export function Chat({
       <ScrollArea className="min-h-0 flex-1">
         <div className="flex flex-col gap-3 p-3">
           {messages.length === 0 && (
-            <div className="text-sm text-muted-foreground">
-              Describe a step, e.g. "format a signup into a Slack message".
+            <div className="flex flex-col items-center px-4 pb-2 pt-10 text-center">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-secondary ring-1 ring-border">
+                <Sparkles className="h-5 w-5 text-foreground/80" />
+              </div>
+              <h2 className="mt-4 text-[15px] font-medium text-foreground">
+                Build a workflow in plain language
+              </h2>
+              <p className="mt-1 max-w-xs text-[13px] leading-relaxed text-muted-foreground">
+                Describe what should happen. I'll wire up the trigger and steps
+                for you.
+              </p>
+
+              <div className="mt-6 flex w-full flex-col gap-2">
+                {EXAMPLES.map((ex) => (
+                  <button
+                    key={ex}
+                    type="button"
+                    onClick={() => useExample(ex)}
+                    className="group flex items-center gap-2.5 rounded-xl border border-border/50 bg-background-subtle px-3 py-2.5 text-left text-[13px] text-foreground/80 transition-colors hover:border-border hover:bg-secondary hover:text-foreground"
+                  >
+                    <span className="flex-1 leading-snug">{ex}</span>
+                    <ArrowUpRight className="h-4 w-4 shrink-0 text-muted-foreground/50 transition-colors group-hover:text-foreground/70" />
+                  </button>
+                ))}
+              </div>
             </div>
           )}
-          {messages.map((m) => (
-            <div
-              key={m.id}
-              className={cn(
-                "max-w-[90%]",
-                m.role === "user" ? "self-end" : "self-start",
-              )}
-            >
-              <div className="mb-1 text-[11px] text-muted-foreground">{m.role}</div>
+          {messages.map((m) => {
+            const isUser = m.role === "user";
+            return (
               <div
+                key={m.id}
                 className={cn(
-                  "whitespace-pre-wrap rounded-xl px-3 py-2 text-sm shadow-sm",
-                  m.role === "user"
-                    ? "bg-muted/25 text-foreground"
-                    : "bg-muted/10 text-foreground",
+                  "flex flex-col gap-1.5",
+                  isUser ? "items-end" : "items-start",
                 )}
               >
-                {m.parts.map((part, i) => {
-                  if (part.type === "text") return <span key={i}>{part.text}</span>;
-                  if (part.type.startsWith("tool-")) {
-                    const p = part as ToolPart;
-                    const o = p.output as
-                      | { id?: string; from?: string; to?: string }
-                      | undefined;
-                    const label =
-                      o?.id ?? (o?.from && o?.to ? `${o.from} → ${o.to}` : "");
-                    return (
-                      <div
-                        key={i}
-                        className="py-1 font-mono text-xs text-[#6ea8ff]"
-                      >
-                        🔧 {part.type.replace("tool-", "")} [{p.state}]
-                        {label ? ` → ${label}` : ""}
-                      </div>
-                    );
-                  }
-                  return null;
-                })}
-              </div>
-              {m.role === "assistant" && usageOf(m.metadata) && (
-                <div className="mt-1 font-mono text-[10px] text-muted-foreground/70">
-                  ↑{usageOf(m.metadata)?.inputTokens ?? 0} ↓
-                  {usageOf(m.metadata)?.outputTokens ?? 0}
+                <div
+                  className={cn(
+                    isUser
+                      ? "max-w-[85%] rounded-2xl rounded-br-md border border-border/60 bg-secondary px-3.5 py-2 text-[14px] leading-relaxed text-secondary-foreground shadow-sm"
+                      : "w-full text-foreground/90",
+                  )}
+                >
+                  {m.parts.map((part, i) => {
+                    if (part.type === "text") {
+                      return isUser ? (
+                        <span key={i} className="whitespace-pre-wrap">
+                          {part.text}
+                        </span>
+                      ) : (
+                        <Markdown key={i}>{part.text}</Markdown>
+                      );
+                    }
+                    if (part.type.startsWith("tool-")) {
+                      const p = part as ToolPart;
+                      const o = p.output as
+                        | { id?: string; from?: string; to?: string }
+                        | undefined;
+                      const label =
+                        o?.id ?? (o?.from && o?.to ? `${o.from} → ${o.to}` : "");
+                      const done = p.state === "output-available";
+                      return (
+                        <div
+                          key={i}
+                          className="my-1 flex w-fit items-center gap-2 rounded-lg border border-border/50 bg-muted/40 px-2 py-1 font-mono text-[11px] text-muted-foreground"
+                        >
+                          <span
+                            className={cn(
+                              "size-1.5 shrink-0 rounded-full",
+                              done ? "bg-emerald-500" : "bg-amber-500 animate-pulse",
+                            )}
+                          />
+                          <span>{part.type.replace("tool-", "")}</span>
+                          {label && (
+                            <span className="text-foreground/70">{label}</span>
+                          )}
+                        </div>
+                      );
+                    }
+                    return null;
+                  })}
                 </div>
-              )}
-            </div>
-          ))}
+                {!isUser && usageOf(m.metadata) && (
+                  <div className="font-mono text-[10px] text-muted-foreground/60">
+                    ↑{usageOf(m.metadata)?.inputTokens ?? 0} ↓
+                    {usageOf(m.metadata)?.outputTokens ?? 0}
+                  </div>
+                )}
+              </div>
+            );
+          })}
           {status === "streaming" && (
             <div className="text-xs text-muted-foreground">…</div>
           )}
@@ -166,12 +277,23 @@ export function Chat({
       </ScrollArea>
 
       <form onSubmit={submit} className="p-2">
-        <div className="flex items-end gap-2 rounded-2xl border border-border/40 bg-background-subtle p-1.5 transition-colors focus-within:border-foreground/20">
-          <Input
+        <div className="flex items-end gap-2 rounded-2xl border border-border/40 bg-background-subtle p-2 transition-colors focus-within:border-foreground/20">
+          <textarea
+            ref={taRef}
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            rows={1}
+            onChange={(e) => {
+              setInput(e.target.value);
+              grow();
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                submit(e);
+              }
+            }}
             placeholder="Message the builder…"
-            className="flex-1 border-none bg-transparent shadow-none focus-visible:ring-0"
+            className="max-h-52 min-h-20 flex-1 resize-none self-stretch border-none bg-transparent px-1 py-1 text-sm leading-relaxed text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-0"
           />
           <Button
             type="submit"

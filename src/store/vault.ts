@@ -1,29 +1,29 @@
 import { randomUUID } from "node:crypto";
-import { store } from "./docstore";
+import type { DocStore } from "./docstore";
 
 export interface Vault {
-  put(value: string): Promise<string>;
-  get(ref: string): Promise<string | null>;
-  remove(ref: string): Promise<void>;
+  put(spaceId: string, value: string): Promise<string>;
+  get(spaceId: string, ref: string): Promise<string | null>;
+  remove(spaceId: string, ref: string): Promise<void>;
 }
 
 const COLLECTION = "secrets";
 
-class DocVault implements Vault {
-  async put(value: string): Promise<string> {
+export class DocVault implements Vault {
+  constructor(private store: DocStore) {}
+
+  async put(spaceId: string, value: string): Promise<string> {
     const ref = randomUUID();
-    await store.put(COLLECTION, ref, { value });
+    await this.store.put(spaceId, COLLECTION, ref, { value });
     return ref;
   }
 
-  async get(ref: string): Promise<string | null> {
-    const doc = await store.get(COLLECTION, ref);
+  async get(spaceId: string, ref: string): Promise<string | null> {
+    const doc = await this.store.get(spaceId, COLLECTION, ref);
     return doc ? (doc.value as string) : null;
   }
 
-  async remove(ref: string): Promise<void> {
-    await store.remove(COLLECTION, ref);
+  async remove(spaceId: string, ref: string): Promise<void> {
+    await this.store.remove(spaceId, COLLECTION, ref);
   }
 }
-
-export const vault: Vault = new DocVault();

@@ -11,14 +11,25 @@ import {
   type OnNodesChange,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
+import { Sun, Moon } from "lucide-react";
 import { Chat } from "./Chat";
+import { Pipeline } from "./Pipeline";
+import { Story } from "./Story";
 import { FuncNode } from "./FuncNode";
+import { TriggerNode } from "./TriggerNode";
 import { NodePanel } from "./NodePanel";
 import { RightPanel, type RightTab } from "./RightPanel";
 import { WorkflowsPanel } from "./WorkflowsPanel";
+import { ConnectionsPanel } from "./ConnectionsPanel";
 import { RunPanel } from "./RunPanel";
-import { useSaveWorkflow, fetchWorkflow } from "./queries";
-import type { AuthoredFunc, Wire } from "./types";
+import {
+  useSaveWorkflow,
+  fetchWorkflow,
+  useConnections,
+  type ConnectionMeta,
+} from "./queries";
+import type { AuthoredFunc, RunStepData, Wire, WorkflowOp } from "./types";
+import { summarizeWorkflow, outputsOf } from "./lineage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -26,12 +37,16 @@ import { Separator } from "@/components/ui/separator";
 
 const wireKey = (w: Wire) => `${w.from}.${w.fromOutput}->${w.to}.${w.toInput}`;
 
-const nodeTypes = { func: FuncNode };
+const NO_CONNECTIONS: ConnectionMeta[] = [];
+
+const nodeTypes = { func: FuncNode, trigger: TriggerNode };
 
 function buildNode(
   f: AuthoredFunc,
   position: { x: number; y: number },
-  status?: string,
+  status: string | undefined,
+  needsConnection: boolean,
+  inputs: { name: string; bound: boolean }[],
 ): Node {
   return {
     id: f.id,
@@ -42,6 +57,9 @@ function buildNode(
       summary: f.summary || "",
       pure: f.pure,
       status,
+      needsConnection,
+      inputs,
+      outputs: outputsOf(f),
     },
   };
 }
@@ -51,11 +69,13 @@ function Canvas({
   edges,
   onNodesChange,
   onSelect,
+  colorMode,
 }: {
   nodes: Node[];
   edges: Edge[];
   onNodesChange: OnNodesChange<Node>;
   onSelect: (id: string) => void;
+  colorMode: "dark" | "light";
 }) {
   const { fitView } = useReactFlow();
   useEffect(() => {
@@ -69,7 +89,7 @@ function Canvas({
       nodeTypes={nodeTypes}
       onNodesChange={onNodesChange}
       fitView
-      colorMode="dark"
+      colorMode={colorMode}
       onNodeClick={(_, node) => onSelect(node.id)}
     >
       <Background />
@@ -84,22 +104,119 @@ export function App() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const positionsRef = useRef<Record<string, { x: number; y: number }>>({});
+  const sendChatRef = useRef<((text: string) => void) | null>(null);
 
   const [workflowId, setWorkflowId] = useState<string | null>(null);
   const [name, setName] = useState("untitled");
+  const [theme, setTheme] = useState<"dark" | "light">(() =>
+    typeof document !== "undefined" &&
+    document.documentElement.classList.contains("dark")
+      ? "dark"
+      : "light",
+  );
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", theme === "dark");
+    try {
+      localStorage.setItem("theme", theme);
+    } catch {
+      void 0;
+    }
+  }, [theme]);
   const [runStatus, setRunStatus] = useState<Record<string, string>>({});
+  const [runData, setRunData] = useState<Record<string, RunStepData>>({});
   const [configValues, setConfigValues] = useState<
     Record<string, Record<string, string>>
   >({});
   const [activeTab, setActiveTab] = useState<RightTab>("chat");
+  const [view, setView] = useState<"story" | "pipeline" | "graph">("story");
+  const [bottomHeight, setBottomHeight] = useState(256);
+  const [building, setBuilding] = useState(false);
+
+  const startResize = useCallback(
+    (e: React.MouseEvent) => {
+      const startY = e.clientY;
+      const startH = bottomHeight;
+      const onMove = (ev: MouseEvent) => {
+        const next = Math.min(Math.max(startH + (startY - ev.clientY), 120), 640);
+        setBottomHeight(next);
+      };
+      const onUp = () => {
+        window.removeEventListener("mousemove", onMove);
+        window.removeEventListener("mouseup", onUp);
+        document.body.style.userSelect = "";
+        document.body.style.cursor = "";
+      };
+      window.addEventListener("mousemove", onMove);
+      window.addEventListener("mouseup", onUp);
+      document.body.style.userSelect = "none";
+      document.body.style.cursor = "row-resize";
+    },
+    [bottomHeight],
+  );
 
   const saveMutation = useSaveWorkflow();
+  const { data: connections = NO_CONNECTIONS } = useConnections();
   const selected = funcs.find((f) => f.id === selectedId) ?? null;
 
+  const connectedProviders = useMemo(
+    () => new Set(connections.map((c) => c.provider)),
+    [connections],
+  );
+
+  const missingProviders = useMemo(() => {
+    const required = new Set<string>();
+    for (const f of funcs) {
+      if (!f.pure) for (const r of f.requires) required.add(r.provider);
+    }
+    return [...required].filter((p) => !connectedProviders.has(p));
+  }, [funcs, connectedProviders]);
+
+  const workflowState = useMemo(
+    () => summarizeWorkflow(funcs, wires, configValues),
+    [funcs, wires, configValues],
+  );
+
+  const triggerFields = useMemo(() => {
+    const fields = new Set<string>();
+    for (const w of wires) {
+      if (w.from === "trigger" && w.fromOutput) fields.add(w.fromOutput);
+    }
+    return [...fields];
+  }, [wires]);
+
   const onSelectNode = useCallback((id: string) => {
+    if (id === "trigger") return;
     setSelectedId(id);
     setActiveTab("node");
   }, []);
+
+  const onRepair = useCallback(
+    (
+      provider: string,
+      ctx: {
+        error: string;
+        callSite: string;
+        sampleInput: string;
+        declaredInputs: string[];
+      },
+    ) => {
+      setActiveTab("chat");
+      const msg = [
+        `A workflow step failed.`,
+        `Error: "${ctx.error}"`,
+        `Provider: "${provider}".`,
+        `The step declares these inputs: ${ctx.declaredInputs.length ? ctx.declaredInputs.join(", ") : "(none)"}.`,
+        `The step's resolved input was: ${ctx.sampleInput}`,
+        ctx.callSite ? `It calls the provider like this:\n${ctx.callSite}` : "",
+        `Diagnose whether this is a provider bug or a flow problem (the step not receiving its input), then act per your rules.`,
+      ]
+        .filter(Boolean)
+        .join("\n\n");
+      sendChatRef.current?.(msg);
+    },
+    [],
+  );
 
   const onConfigChange = useCallback(
     (funcId: string, port: string, value: string) => {
@@ -111,52 +228,102 @@ export function App() {
     [],
   );
 
-  const onFuncs = useCallback((list: AuthoredFunc[]) => {
-    if (list.length === 0) return;
-    setFuncs((prev) => {
-      const map = new Map(prev.map((f) => [f.id, f]));
-      for (const f of list) map.set(f.id, f);
-      return [...map.values()];
-    });
-  }, []);
+  const [ops, setOps] = useState<WorkflowOp[]>([]);
+  const processedOps = useRef<Set<string>>(new Set());
 
-  const onWires = useCallback((list: Wire[]) => {
-    if (list.length === 0) return;
-    setWires((prev) => {
-      const map = new Map(prev.map((w) => [wireKey(w), w]));
-      for (const w of list) map.set(wireKey(w), w);
-      return [...map.values()];
-    });
-  }, []);
+  useEffect(() => {
+    const fresh = ops.filter((o) => !processedOps.current.has(o.key));
+    if (fresh.length === 0) return;
+    for (const o of fresh) processedOps.current.add(o.key);
+    for (const o of fresh) {
+      if (o.kind === "funcs") {
+        setFuncs((prev) => {
+          const map = new Map(prev.map((f) => [f.id, f]));
+          for (const f of o.funcs) map.set(f.id, f);
+          return [...map.values()];
+        });
+      } else if (o.kind === "wires") {
+        setWires((prev) => {
+          const map = new Map(prev.map((w) => [wireKey(w), w]));
+          for (const w of o.wires) map.set(wireKey(w), w);
+          return [...map.values()];
+        });
+      } else if (o.kind === "deleteFunc") {
+        setFuncs((prev) => prev.filter((f) => f.id !== o.id));
+        setWires((prev) =>
+          prev.filter((w) => w.from !== o.id && w.to !== o.id),
+        );
+        setSelectedId((cur) => (cur === o.id ? null : cur));
+      } else if (o.kind === "unwire") {
+        setWires((prev) =>
+          prev.filter(
+            (w) =>
+              !(
+                w.to === o.to &&
+                (o.toInput == null || w.toInput === o.toInput)
+              ),
+          ),
+        );
+      }
+    }
+  }, [ops]);
 
   useEffect(() => {
     setNodes((prev) => {
       const prevPos = new Map(prev.map((n) => [n.id, n.position]));
-      return funcs.map((f, i) =>
-        buildNode(
+      const funcNodes = funcs.map((f, i) => {
+        const needsConnection =
+          !f.pure && f.requires.some((r) => !connectedProviders.has(r.provider));
+        const cfg = configValues[f.id] ?? {};
+        const inputs = f.inputs.map((p) => ({
+          name: p.name,
+          bound:
+            wires.some((w) => w.to === f.id && w.toInput === p.name) ||
+            (cfg[p.name] !== undefined && cfg[p.name] !== ""),
+        }));
+        return buildNode(
           f,
           prevPos.get(f.id) ??
-            positionsRef.current[f.id] ?? { x: 60 + i * 340, y: 160 },
+            positionsRef.current[f.id] ?? { x: 360 + i * 340, y: 160 },
           runStatus[f.id],
-        ),
-      );
+          needsConnection,
+          inputs,
+        );
+      });
+      if (funcs.length === 0 && triggerFields.length === 0) return funcNodes;
+      const triggerNode: Node = {
+        id: "trigger",
+        type: "trigger",
+        position:
+          prevPos.get("trigger") ??
+          positionsRef.current["trigger"] ?? { x: 40, y: 160 },
+        data: { fields: triggerFields },
+      };
+      return [triggerNode, ...funcNodes];
     });
-  }, [funcs, runStatus, setNodes]);
+  }, [
+    funcs,
+    wires,
+    configValues,
+    runStatus,
+    connectedProviders,
+    triggerFields,
+    setNodes,
+  ]);
 
   const rfEdges: Edge[] = useMemo(() => {
     const ids = new Set(funcs.map((f) => f.id));
+    ids.add("trigger");
     return wires
       .filter((w) => ids.has(w.from) && ids.has(w.to))
       .map((w) => ({
         id: wireKey(w),
         source: w.from,
         target: w.to,
-        label:
-          w.fromOutput && w.toInput ? `${w.fromOutput} → ${w.toInput}` : undefined,
+        sourceHandle: w.fromOutput || undefined,
+        targetHandle: w.toInput || undefined,
         animated: true,
         style: { stroke: "#6ea8ff" },
-        labelStyle: { fill: "#cdd9ec", fontSize: 11 },
-        labelBgStyle: { fill: "#1b2433" },
       }));
   }, [wires, funcs]);
 
@@ -165,6 +332,7 @@ export function App() {
     setWires([]);
     setSelectedId(null);
     setRunStatus({});
+    setRunData({});
     setConfigValues({});
     positionsRef.current = {};
     setWorkflowId(null);
@@ -199,7 +367,7 @@ export function App() {
   return (
     <div className="flex h-screen w-screen flex-col bg-background text-foreground">
       <div className="p-2 pb-0">
-        <header className="flex items-center gap-3 rounded-2xl border border-border/40 bg-muted/40 px-4 py-2 backdrop-blur-xl">
+        <header className="flex items-center gap-3 rounded-2xl border border-border/40 bg-muted/40 px-4 py-2">
           <strong className="text-sm font-semibold">Workflow Builder</strong>
           <Input
             value={name}
@@ -220,37 +388,125 @@ export function App() {
           <Badge variant="secondary" className="font-normal">
             {funcs.length} func
           </Badge>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-8 w-8"
+            title={theme === "dark" ? "Switch to light" : "Switch to dark"}
+            onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
+          >
+            {theme === "dark" ? (
+              <Sun className="h-4 w-4" />
+            ) : (
+              <Moon className="h-4 w-4" />
+            )}
+          </Button>
         </header>
       </div>
 
       <div className="flex min-h-0 flex-1 gap-2 p-2">
-        <WorkflowsPanel currentId={workflowId} onLoad={load} />
-        <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border/40 bg-card">
+        <div className="flex w-60 shrink-0 flex-col gap-2">
           <div className="min-h-0 flex-1">
-            <ReactFlowProvider>
-              <Canvas
-                nodes={nodes}
-                edges={rfEdges}
-                onNodesChange={onNodesChange}
+            <WorkflowsPanel currentId={workflowId} onLoad={load} />
+          </div>
+          <ConnectionsPanel missing={missingProviders} />
+        </div>
+        <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border/40 bg-card">
+          <div className="absolute left-3 top-3 z-10 flex rounded-lg border border-border/50 bg-muted/60 p-0.5 text-xs">
+            {(["story", "pipeline", "graph"] as const).map((v) => (
+              <button
+                key={v}
+                onClick={() => setView(v)}
+                className={
+                  "rounded-md px-2.5 py-1 capitalize transition-colors " +
+                  (view === v
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground")
+                }
+              >
+                {v}
+              </button>
+            ))}
+          </div>
+          {missingProviders.length > 0 && (
+            <div className="pointer-events-none absolute left-1/2 top-3 z-10 -translate-x-1/2">
+              <div className="rounded-full border border-amber-500/30 bg-amber-500/15 px-3 py-1 text-xs font-medium text-amber-200 shadow-sm">
+                ⚠ {missingProviders.length} connection
+                {missingProviders.length > 1 ? "s" : ""} needed
+              </div>
+            </div>
+          )}
+          <div className="min-h-0 flex-1">
+            {view === "graph" ? (
+              <ReactFlowProvider>
+                <Canvas
+                  nodes={nodes}
+                  edges={rfEdges}
+                  onNodesChange={onNodesChange}
+                  onSelect={onSelectNode}
+                  colorMode={theme}
+                />
+              </ReactFlowProvider>
+            ) : view === "story" ? (
+              <Story
+                funcs={funcs}
+                wires={wires}
+                triggerFields={triggerFields}
+                runStatus={runStatus}
+                connectedProviders={connectedProviders}
+                configValues={configValues}
+                building={building}
+                selectedId={selectedId}
                 onSelect={onSelectNode}
               />
-            </ReactFlowProvider>
+            ) : (
+              <Pipeline
+                funcs={funcs}
+                wires={wires}
+                triggerFields={triggerFields}
+                runStatus={runStatus}
+                connectedProviders={connectedProviders}
+                configValues={configValues}
+                selectedId={selectedId}
+                onSelect={onSelectNode}
+              />
+            )}
           </div>
-          <RunPanel
-            funcs={funcs}
-            wires={wires}
-            config={configValues}
-            onStatus={setRunStatus}
-          />
+          <div
+            onMouseDown={startResize}
+            className="group flex h-2 shrink-0 cursor-row-resize items-center justify-center border-t border-border/40"
+          >
+            <div className="h-0.5 w-8 rounded-full bg-border transition-colors group-hover:bg-foreground/40" />
+          </div>
+          <div style={{ height: bottomHeight }} className="shrink-0">
+            <RunPanel
+              funcs={funcs}
+              wires={wires}
+              config={configValues}
+              onStatus={setRunStatus}
+              onData={setRunData}
+              onRepair={onRepair}
+            />
+          </div>
         </div>
         <RightPanel
           active={activeTab}
           onTab={setActiveTab}
-          chat={<Chat onFuncs={onFuncs} onWires={onWires} />}
+          chat={
+            <Chat
+              onOps={setOps}
+              onBuilding={setBuilding}
+              workflowState={workflowState}
+              onReady={(send) => {
+                sendChatRef.current = send;
+              }}
+            />
+          }
           node={
             <NodePanel
               func={selected}
               config={selected ? (configValues[selected.id] ?? {}) : {}}
+              run={selected ? runData[selected.id] : undefined}
               onConfigChange={(port, value) =>
                 selected && onConfigChange(selected.id, port, value)
               }

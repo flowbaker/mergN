@@ -13,7 +13,7 @@ export function WorkflowsPanel({
   const del = useDeleteWorkflow();
 
   return (
-    <div className="flex h-full w-60 shrink-0 flex-col overflow-hidden rounded-2xl border border-border/40 bg-muted/40 backdrop-blur-xl">
+    <div className="flex h-full w-60 shrink-0 flex-col overflow-hidden rounded-2xl border border-border/40 bg-muted/40">
       <div className="flex items-center gap-2 px-4 py-3">
         <span className="text-sm font-semibold">Workflows</span>
         <span className="ml-auto rounded bg-muted/60 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground/80">

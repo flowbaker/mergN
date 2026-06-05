@@ -1,0 +1,78 @@
+import { useState } from "react";
+import { cn } from "@/lib/utils";
+import { useConnections, type ConnectionMeta } from "./queries";
+import { ConnectionDialog } from "./ConnectionDialog";
+
+interface Row {
+  provider: string;
+  connection?: ConnectionMeta;
+}
+
+export function ConnectionsPanel({ missing }: { missing: string[] }) {
+  const { data: items = [], isLoading } = useConnections();
+  const [open, setOpen] = useState<Row | null>(null);
+
+  const rows: Row[] = [
+    ...missing.map((p) => ({ provider: p, connection: undefined })),
+    ...items.map((c) => ({ provider: c.provider, connection: c })),
+  ];
+
+  return (
+    <div className="flex h-64 shrink-0 flex-col overflow-hidden rounded-2xl border border-border/40 bg-muted/40">
+      <div className="flex items-center gap-2 px-4 py-3">
+        <span className="text-sm font-semibold">Connections</span>
+        <span className="ml-auto rounded bg-muted/60 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground/80">
+          {items.length}
+        </span>
+      </div>
+
+      <div className="min-h-0 flex-1 space-y-0.5 overflow-auto p-2">
+        {isLoading && (
+          <div className="px-2 py-1 text-xs text-muted-foreground">loading…</div>
+        )}
+        {!isLoading && rows.length === 0 && (
+          <div className="px-2 py-6 text-center text-xs text-muted-foreground">
+            No connections yet.
+          </div>
+        )}
+
+        {rows.map((r, i) => {
+          const connected = !!r.connection;
+          return (
+            <button
+              key={`${r.provider}-${r.connection?.id ?? i}`}
+              onClick={() => setOpen(r)}
+              className="flex w-full items-center gap-2.5 rounded-xl px-2 py-2 text-left transition-colors hover:bg-background-subtle"
+            >
+              <span
+                className={cn(
+                  "size-2 shrink-0 rounded-full",
+                  connected ? "bg-emerald-500" : "bg-amber-500",
+                )}
+              />
+              <span className="min-w-0 flex-1 truncate font-mono text-xs font-medium">
+                {r.provider}
+              </span>
+              <span
+                className={cn(
+                  "text-[11px]",
+                  connected ? "text-muted-foreground" : "text-amber-300/80",
+                )}
+              >
+                {connected ? "connected" : "connect"}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {open && (
+        <ConnectionDialog
+          provider={open.provider}
+          connection={open.connection}
+          onClose={() => setOpen(null)}
+        />
+      )}
+    </div>
+  );
+}
