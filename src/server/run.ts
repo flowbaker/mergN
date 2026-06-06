@@ -264,6 +264,11 @@ export async function runWorkflow(
   const scheduler = new Scheduler(workflow, log, queue);
 
   const isRemote = process.env.CODE_RUNTIME === "remote";
+  if (process.env.NODE_ENV === "production" && !isRemote) {
+    throw new Error(
+      "refusing to execute workflow code in-process in production: set CODE_RUNTIME=remote (sandboxed execution required)",
+    );
+  }
   const runtime: Runtime = isRemote
     ? new RemoteSandboxRuntime()
     : new EvalRuntime();
