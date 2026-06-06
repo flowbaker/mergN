@@ -215,6 +215,7 @@ export async function runWorkflow(
   input: Record<string, unknown>,
   config: Record<string, Record<string, string>> = {},
   onRecord?: (r: StepRecord) => Promise<void> | void,
+  seed?: StepRecord[],
 ): Promise<StepRecord[]> {
   const registry = new InMemoryFuncRegistry();
   const nodes: FuncNode[] = [];
@@ -238,16 +239,20 @@ export async function runWorkflow(
   );
 
   const runId = "run";
-  await log.append({
-    runId,
-    nodeId: "trigger",
-    funcId: "trigger",
-    funcVersion: 1,
-    attempt: 1,
-    status: "done",
-    resolvedInput: {},
-    output: input,
-  });
+  if (seed && seed.length) {
+    for (const record of seed) await log.append({ ...record, runId });
+  } else {
+    await log.append({
+      runId,
+      nodeId: "trigger",
+      funcId: "trigger",
+      funcVersion: 1,
+      attempt: 1,
+      status: "done",
+      resolvedInput: {},
+      output: input,
+    });
+  }
   await scheduler.tick(runId);
 
   let item = await queue.pop();

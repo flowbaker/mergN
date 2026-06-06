@@ -423,8 +423,19 @@ app.post("/api/run", async (c) => {
     config?: Record<string, Record<string, string>>;
     workflowId?: string;
     workflowName?: string;
+    runId?: string;
+    resumeRunId?: string;
   }>();
-  const input = body.input ?? {};
+  let input = body.input ?? {};
+  let seed: StepRecord[] | undefined;
+  if (body.resumeRunId) {
+    const prior = await runs.getRun(spaceId, body.resumeRunId);
+    if (prior) {
+      seed = prior.records.filter((r) => r.status === "done");
+      input = prior.input;
+    }
+  }
+  const runDocId = body.runId ?? randomUUID();
   return streamSSE(c, async (stream) => {
     const startedAt = new Date().toISOString();
     const records: StepRecord[] = [];
@@ -438,14 +449,15 @@ app.post("/api/run", async (c) => {
         records.push(record);
         await stream.writeSSE({ data: JSON.stringify(record) });
       },
+      seed,
     );
     await stream.writeSSE({ data: "[DONE]" });
     if (body.workflowId) {
       await runs.saveRun(spaceId, {
-        id: randomUUID(),
+        id: runDocId,
         workflowId: body.workflowId,
         workflowName: body.workflowName ?? "untitled",
-        trigger: "manual",
+        trigger: body.resumeRunId ? "resume" : "manual",
         status: records.some((r) => r.status === "failed") ? "failed" : "done",
         input,
         records,

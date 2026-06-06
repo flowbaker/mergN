@@ -73,6 +73,7 @@ export function RunPanel({
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loadingRun, setLoadingRun] = useState<string | null>(null);
+  const [currentRunId, setCurrentRunId] = useState<string | null>(null);
   const [tab, setTab] = useState<"input" | "state" | "runs">("input");
   const [formValues, setFormValues] = useState<Record<string, string>>({});
   const [inputMode, setInputMode] = useState<"form" | "json">("form");
@@ -139,19 +140,8 @@ export function RunPanel({
     return f && !f.pure && f.requires[0] ? f.requires[0].provider : undefined;
   };
 
-  const run = async () => {
+  const streamRun = async (payload: Record<string, unknown>) => {
     setError(null);
-    let parsed: unknown;
-    if (useForm && inputMode === "form") {
-      parsed = buildFormInput();
-    } else {
-      try {
-        parsed = JSON.parse(input || "{}");
-      } catch {
-        setError("Invalid JSON input");
-        return;
-      }
-    }
     setRunning(true);
     setRecords([]);
     setTab("state");
@@ -161,14 +151,7 @@ export function RunPanel({
       const res = await fetch("/api/run", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...spaceHeaders() },
-        body: JSON.stringify({
-          funcs,
-          wires,
-          config,
-          input: parsed,
-          workflowId: workflowId ?? undefined,
-          workflowName,
-        }),
+        body: JSON.stringify(payload),
       });
       if (!res.body) throw new Error("no stream");
 
@@ -207,9 +190,48 @@ export function RunPanel({
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setRunning(false);
-      if (workflowId)
-        qc.invalidateQueries({ queryKey: ["runs", workflowId] });
+      if (workflowId) qc.invalidateQueries({ queryKey: ["runs", workflowId] });
     }
+  };
+
+  const run = async () => {
+    let parsed: unknown;
+    if (useForm && inputMode === "form") {
+      parsed = buildFormInput();
+    } else {
+      try {
+        parsed = JSON.parse(input || "{}");
+      } catch {
+        setError("Invalid JSON input");
+        return;
+      }
+    }
+    const id = crypto.randomUUID();
+    setCurrentRunId(id);
+    await streamRun({
+      funcs,
+      wires,
+      config,
+      input: parsed,
+      workflowId: workflowId ?? undefined,
+      workflowName,
+      runId: id,
+    });
+  };
+
+  const resume = async () => {
+    if (!currentRunId) return;
+    const id = crypto.randomUUID();
+    setCurrentRunId(id);
+    await streamRun({
+      funcs,
+      wires,
+      config,
+      workflowId: workflowId ?? undefined,
+      workflowName,
+      runId: id,
+      resumeRunId: currentRunId,
+    });
   };
 
   const openRun = async (id: string) => {
@@ -217,6 +239,7 @@ export function RunPanel({
     try {
       const run = await fetchRun(id);
       setRecords(run.records as RunRecord[]);
+      setCurrentRunId(id);
       const status: Record<string, string> = {};
       const dataByNode: Record<string, RunStepData> = {};
       for (const r of run.records) {
@@ -238,6 +261,11 @@ export function RunPanel({
     }
   };
 
+  const canResume =
+    !!workflowId &&
+    !!currentRunId &&
+    records.some((r) => r.status === "failed");
+
   return (
     <div className="flex h-full flex-col bg-background-subtle/30">
       <div className="flex items-center gap-2 px-3 py-2">
@@ -249,6 +277,19 @@ export function RunPanel({
         >
           {running ? "running…" : "▶ Run"}
         </Button>
+
+        {canResume && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={resume}
+            disabled={running}
+            className="h-7 rounded-lg px-3"
+            title="Re-run from the failed step, reusing earlier outputs"
+          >
+            ⟲ Resume
+          </Button>
+        )}
 
         <div className="flex rounded-lg border border-border/50 bg-muted/50 p-0.5 text-xs">
           {(["input", "state", "runs"] as const).map((t) => (
