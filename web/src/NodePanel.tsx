@@ -4,7 +4,6 @@ import { cn } from "@/lib/utils";
 import type { AuthoredFunc, RunStepData } from "./types";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { CodeBlock } from "./CodeBlock";
 import { ProviderConnection } from "./ProviderConnection";
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -40,9 +39,9 @@ function JsonBlock({
       className={cn(
         "overflow-auto rounded-lg border p-2.5 font-mono text-[11px] leading-relaxed",
         tone === "error"
-          ? "border-rose-500/30 bg-rose-500/5 text-rose-200"
+          ? "border-tone-rose/30 bg-tone-rose/5 text-tone-rose-fg"
           : tone === "out"
-            ? "border-border/50 bg-muted/30 text-emerald-200/85"
+            ? "border-border/50 bg-muted/30 text-tone-emerald-fg"
             : "border-border/50 bg-muted/30 text-foreground/85",
       )}
     >
@@ -90,8 +89,8 @@ export function NodePanel({
             className={cn(
               "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl",
               func.pure
-                ? "bg-emerald-500/15 text-emerald-400"
-                : "bg-blue-500/15 text-blue-400",
+                ? "bg-tone-emerald/15 text-tone-emerald-fg"
+                : "bg-tone-blue/15 text-tone-blue-fg",
             )}
           >
             {func.pure ? (
@@ -109,8 +108,8 @@ export function NodePanel({
                 className={cn(
                   "shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-medium",
                   func.pure
-                    ? "bg-emerald-500/10 text-emerald-300/90"
-                    : "bg-blue-500/10 text-blue-300/90",
+                    ? "bg-tone-emerald/12 text-tone-emerald-fg"
+                    : "bg-tone-blue/12 text-tone-blue-fg",
                 )}
               >
                 {func.pure ? "transform" : "effectful"}
@@ -149,7 +148,7 @@ export function NodePanel({
             </div>
             {run.error ? (
               <div className="space-y-1">
-                <div className="text-[10px] text-rose-300/80">error</div>
+                <div className="text-[10px] text-tone-rose-fg">error</div>
                 <JsonBlock value={run.error} tone="error" />
               </div>
             ) : (
@@ -221,7 +220,7 @@ export function NodePanel({
               {outs.map((o) => (
                 <span
                   key={o}
-                  className="rounded-md bg-emerald-500/10 px-2 py-1 font-mono text-[11px] text-emerald-300/90 ring-1 ring-emerald-500/20"
+                  className="rounded-md bg-tone-emerald/12 px-2 py-1 font-mono text-[11px] text-tone-emerald-fg ring-1 ring-tone-emerald/30"
                 >
                   {o}
                 </span>
@@ -260,10 +259,6 @@ export function NodePanel({
             </Section>
           </>
         )}
-
-        <Section title="Generated code">
-          <CodeBlock source={func.bodySource} name={func.id} />
-        </Section>
       </div>
     </ScrollArea>
   );

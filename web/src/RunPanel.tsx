@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import type { AuthoredFunc, InputForm, RunStepData, Wire } from "./types";
 import { spaceHeaders } from "./space";
 import { useRuns, fetchRun, generateInputForm } from "./queries";
+import { CodeBlock } from "./CodeBlock";
 
 interface RunRecord {
   nodeId: string;
@@ -41,6 +42,8 @@ export function RunPanel({
   onInputForm,
   triggerFields,
   syncing,
+  selected,
+  theme,
   onStatus,
   onData,
   onRepair,
@@ -54,6 +57,8 @@ export function RunPanel({
   onInputForm: (form: InputForm | null) => void;
   triggerFields: string[];
   syncing: boolean;
+  selected: AuthoredFunc | null;
+  theme: "dark" | "light";
   onStatus: (status: Record<string, string>) => void;
   onData: (data: Record<string, RunStepData>) => void;
   onRepair: (
@@ -74,7 +79,7 @@ export function RunPanel({
   const [error, setError] = useState<string | null>(null);
   const [loadingRun, setLoadingRun] = useState<string | null>(null);
   const [currentRunId, setCurrentRunId] = useState<string | null>(null);
-  const [tab, setTab] = useState<"input" | "state" | "runs">("input");
+  const [tab, setTab] = useState<"input" | "state" | "runs" | "code">("input");
   const [formValues, setFormValues] = useState<Record<string, string>>({});
   const [inputMode, setInputMode] = useState<"form" | "json">("form");
   const [regenerating, setRegenerating] = useState(false);
@@ -292,7 +297,7 @@ export function RunPanel({
         )}
 
         <div className="flex rounded-lg border border-border/50 bg-muted/50 p-0.5 text-xs">
-          {(["input", "state", "runs"] as const).map((t) => (
+          {(["input", "state", "runs", "code"] as const).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -511,6 +516,42 @@ export function RunPanel({
                 </button>
               ))}
             </div>
+          )}
+        </div>
+      ) : tab === "code" ? (
+        <div className="flex min-h-0 flex-1 flex-col px-3 pb-3">
+          {!selected ? (
+            <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
+              Select a step to see its generated code.
+            </div>
+          ) : (
+            <>
+              <div className="mb-2 flex items-center gap-2">
+                <span className="text-xs font-medium">
+                  {selected.title || selected.id}
+                </span>
+                <span className="font-mono text-[10px] text-muted-foreground/60">
+                  {selected.id} · v{selected.version}
+                </span>
+                <button
+                  onClick={() =>
+                    navigator.clipboard?.writeText(selected.bodySource)
+                  }
+                  className="ml-auto rounded-md border border-border/50 px-1.5 py-0.5 text-[10px] text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  copy
+                </button>
+              </div>
+              <div className="min-h-0 flex-1">
+                <CodeBlock
+                  source={selected.bodySource}
+                  name={selected.id}
+                  theme={theme}
+                  wrap={false}
+                  fill
+                />
+              </div>
+            </>
           )}
         </div>
       ) : (

@@ -563,6 +563,8 @@ export function App() {
                   onInputForm={setInputForm}
                   triggerFields={triggerFields}
                   syncing={formSyncing}
+                  selected={selected}
+                  theme={theme}
                   onStatus={setRunStatus}
                   onData={setRunData}
                   onRepair={onRepair}
