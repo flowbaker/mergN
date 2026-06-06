@@ -87,7 +87,7 @@ function Canvas({
 }) {
   const { fitView } = useReactFlow();
   useEffect(() => {
-    if (nodes.length > 0) fitView({ duration: 300, padding: 0.2 });
+    if (nodes.length > 0) fitView({ duration: 300, padding: 0.28 });
   }, [nodes.length, fitView]);
 
   return (
@@ -97,6 +97,7 @@ function Canvas({
       nodeTypes={nodeTypes}
       onNodesChange={onNodesChange}
       fitView
+      fitViewOptions={{ padding: 0.28 }}
       colorMode={colorMode}
       onNodeClick={(_, node) => onSelect(node.id)}
     >
@@ -474,7 +475,7 @@ export function App() {
         </div>
         <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border/40 bg-card">
           <div className="absolute left-3 top-3 z-10 flex items-center gap-2">
-            <div className="flex rounded-lg border border-border/50 bg-muted/60 p-0.5 text-xs">
+            <div className="flex rounded-lg border border-border/50 bg-muted p-0.5 text-xs">
               {(["story", "pipeline", "graph"] as const).map((v) => (
                 <button
                   key={v}
@@ -493,7 +494,7 @@ export function App() {
             <button
               onClick={() => setTriggerOpen(true)}
               title="Configure trigger"
-              className="flex items-center gap-1.5 rounded-lg border border-border/50 bg-muted/60 px-2.5 py-1 text-xs text-foreground/90 transition-colors hover:border-border"
+              className="flex items-center gap-1.5 rounded-lg border border-border/50 bg-muted px-2.5 py-1 text-xs text-foreground/90 transition-colors hover:border-border"
             >
               <Zap className="h-3.5 w-3.5 text-amber-400" />
               <span className="capitalize">{trigger.kind}</span>

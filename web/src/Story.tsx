@@ -35,7 +35,7 @@ const SKELETON_LINES: SkelLine[] = [
 function StorySkeleton() {
   return (
     <div className="h-full overflow-hidden">
-      <article className="mx-auto max-w-2xl px-10 py-12">
+      <article className="mx-auto max-w-2xl px-10 pb-12 pt-16">
         <div className="mb-9 flex items-center gap-2 text-xs text-muted-foreground">
           <span className="size-1.5 animate-pulse rounded-full bg-amber-400" />
           Writing your workflow
@@ -179,7 +179,7 @@ export function Story({
 
   return (
     <div className="h-full overflow-auto">
-      <article className="mx-auto max-w-2xl px-8 py-10 text-[15px] leading-8 text-foreground/90">
+      <article className="mx-auto max-w-2xl px-8 pb-10 pt-16 text-[15px] leading-8 text-foreground/90">
         <p>
           <span className="text-muted-foreground">When this workflow runs, </span>
           {triggerFields.length > 0 ? (

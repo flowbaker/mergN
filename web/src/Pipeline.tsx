@@ -67,7 +67,7 @@ export function Pipeline({
 
   return (
     <div className="h-full overflow-auto">
-      <div className="mx-auto flex max-w-xl flex-col items-stretch gap-0 p-6">
+      <div className="mx-auto flex max-w-xl flex-col items-stretch gap-0 px-6 pb-6 pt-16">
         <div className="rounded-2xl border border-tone-amber/30 bg-tone-amber/5 p-3">
           <div className="flex items-center gap-2">
             <div className="flex items-center justify-center rounded-xl bg-tone-amber/15 p-1.5 text-tone-amber-fg">
