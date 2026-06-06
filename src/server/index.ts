@@ -30,6 +30,8 @@ import { designWorkflow, planWorkflow } from "../agent/workflow-designer";
 import { authorInputForm } from "../agent/form-author";
 import { createConnections } from "./connections";
 import { createOAuth } from "./oauth";
+import { auth, getSessionUser } from "./auth";
+import { createMembership } from "./membership";
 import type { FuncDefinition, StepRecord } from "../atoms/index";
 
 const SYSTEM = [
@@ -72,6 +74,7 @@ const oauth = createOAuth({ store, vault, registry });
 const connections = createConnections({ store, vault, oauth });
 const workflows = createWorkflowStore(store);
 const runs = createRunStore(store);
+const membership = createMembership(store);
 
 async function runSavedWorkflow(
   spaceId: string,
@@ -320,18 +323,35 @@ function oauthResultPage(ok: boolean, detail: string): string {
 </body></html>`;
 }
 
-const app = new Hono<{ Variables: { spaceId: string } }>();
+const app = new Hono<{ Variables: { spaceId: string; userId: string } }>();
+
+app.on(["POST", "GET"], "/api/auth/*", (c) => auth.handler(c.req.raw));
 
 app.use("/api/*", async (c, next) => {
-  const raw = c.req.header("x-space-id") || "default";
-  let spaceId: string;
-  try {
-    spaceId = assertSpace(raw);
-  } catch {
-    return c.json({ error: "invalid space id" }, 400);
+  const path = c.req.path;
+  if (path.startsWith("/api/auth/") || path.startsWith("/api/hooks/"))
+    return next();
+
+  const user = await getSessionUser(c.req.raw.headers);
+  if (!user) return c.json({ error: "unauthorized" }, 401);
+
+  const personal = await membership.ensurePersonalSpace(user);
+  let spaceId = personal.id;
+  const raw = c.req.header("x-space-id");
+  if (raw) {
+    let candidate: string;
+    try {
+      candidate = assertSpace(raw);
+    } catch {
+      return c.json({ error: "invalid space id" }, 400);
+    }
+    if (!(await membership.canAccess(user.id, candidate)))
+      return c.json({ error: "forbidden" }, 403);
+    spaceId = candidate;
   }
   await registry.ensureSpace(spaceId);
   c.set("spaceId", spaceId);
+  c.set("userId", user.id);
   await next();
 });
 
@@ -520,25 +540,18 @@ app.get("/api/runs/:id", async (c) => {
 });
 
 app.get("/api/spaces", async (c) => {
-  const ids = await store.spaces();
-  if (!ids.includes("default")) ids.unshift("default");
-  return c.json(ids.map((id) => ({ id })));
+  const spaces = await membership.listSpaces(c.get("userId"));
+  return c.json(spaces.map((s) => ({ id: s.id, name: s.name })));
 });
 
 app.post("/api/spaces", async (c) => {
-  const body = await c.req.json<{ id?: string }>();
-  let id: string;
-  try {
-    id = assertSpace(body.id ?? "");
-  } catch {
-    return c.json({ error: "invalid space id" }, 400);
-  }
-  await registry.ensureSpace(id);
-  await store.put(id, "_meta", "space", {
-    id,
-    createdAt: new Date().toISOString(),
-  });
-  return c.json({ id });
+  const body = await c.req.json<{ name?: string }>();
+  const space = await membership.createSpace(
+    c.get("userId"),
+    body.name ?? "Workspace",
+  );
+  await registry.ensureSpace(space.id);
+  return c.json({ id: space.id, name: space.name });
 });
 
 app.get("/api/connections", async (c) => {
@@ -606,7 +619,9 @@ app.delete("/api/providers/:id/oauth-config", async (c) => {
 
 app.get("/api/oauth/:provider/start", async (c) => {
   try {
-    const spaceId = assertSpace(c.req.query("space") || "default");
+    const spaceId = assertSpace(c.req.query("space") || "");
+    if (!(await membership.canAccess(c.get("userId"), spaceId)))
+      return c.html(oauthResultPage(false, "forbidden"));
     await registry.ensureSpace(spaceId);
     const { url } = await oauth.startOAuth(spaceId, c.req.param("provider"));
     return c.redirect(url);

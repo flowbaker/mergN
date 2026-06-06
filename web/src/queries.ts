@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AuthoredFunc, InputForm, TriggerConfig, Wire } from "./types";
-import { spaceHeaders } from "./space";
+import { getSpace, spaceHeaders } from "./space";
+import { useAuth } from "./authContext";
 
 export interface WorkflowMeta {
   id: string;
@@ -54,9 +55,11 @@ async function json<T>(url: string, init?: RequestInit): Promise<T> {
 }
 
 export function useWorkflows() {
+  const { user } = useAuth();
   return useQuery({
-    queryKey: ["workflows"],
+    queryKey: ["workflows", getSpace()],
     queryFn: () => json<WorkflowMeta[]>("/api/workflows"),
+    enabled: !!user,
   });
 }
 
@@ -88,23 +91,26 @@ export function fetchWorkflow(id: string): Promise<SavedWorkflow> {
 
 export interface SpaceMeta {
   id: string;
+  name: string;
 }
 
 export function useSpaces() {
+  const { user } = useAuth();
   return useQuery({
     queryKey: ["spaces"],
     queryFn: () => json<SpaceMeta[]>("/api/spaces"),
+    enabled: !!user,
   });
 }
 
 export function useCreateSpace() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) =>
+    mutationFn: (name: string) =>
       json<SpaceMeta>("/api/spaces", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id }),
+        body: JSON.stringify({ name }),
       }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["spaces"] }),
   });
@@ -146,9 +152,11 @@ export interface ProviderAuth {
 }
 
 export function useProviderAuth(provider: string) {
+  const { user } = useAuth();
   return useQuery({
     queryKey: ["provider-auth", provider],
     queryFn: () => json<ProviderAuth>(`/api/providers/${provider}/auth`),
+    enabled: !!user,
   });
 }
 
@@ -158,10 +166,11 @@ export interface OAuthStatus {
 }
 
 export function useOAuthStatus(provider: string, enabled: boolean) {
+  const { user } = useAuth();
   return useQuery({
     queryKey: ["oauth-config", provider],
     queryFn: () => json<OAuthStatus>(`/api/providers/${provider}/oauth-config`),
-    enabled,
+    enabled: enabled && !!user,
   });
 }
 
@@ -198,9 +207,11 @@ export function useDeleteOAuthApp(provider: string) {
 }
 
 export function useConnections() {
+  const { user } = useAuth();
   return useQuery({
-    queryKey: ["connections"],
+    queryKey: ["connections", getSpace()],
     queryFn: () => json<ConnectionMeta[]>("/api/connections"),
+    enabled: !!user,
   });
 }
 
@@ -257,11 +268,12 @@ export interface RunDoc {
 }
 
 export function useRuns(workflowId: string | null) {
+  const { user } = useAuth();
   return useQuery({
-    queryKey: ["runs", workflowId],
+    queryKey: ["runs", workflowId, getSpace()],
     queryFn: () =>
       json<RunMeta[]>(`/api/runs?workflow=${encodeURIComponent(workflowId!)}`),
-    enabled: !!workflowId,
+    enabled: !!workflowId && !!user,
   });
 }
 

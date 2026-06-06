@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { AuthoredFunc, InputForm, RunStepData, Wire } from "./types";
 import { spaceHeaders } from "./space";
+import { useAuth } from "./authContext";
 import { useRuns, fetchRun, generateInputForm } from "./queries";
 import { CodeBlock } from "./CodeBlock";
 
@@ -72,6 +73,7 @@ export function RunPanel({
   ) => void;
 }) {
   const qc = useQueryClient();
+  const { requireAuth } = useAuth();
   const runsQuery = useRuns(workflowId);
   const [input, setInput] = useState("{}");
   const [records, setRecords] = useState<RunRecord[]>([]);
@@ -200,6 +202,7 @@ export function RunPanel({
   };
 
   const run = async () => {
+    if (!requireAuth(() => void run())) return;
     let parsed: unknown;
     if (useForm && inputMode === "form") {
       parsed = buildFormInput();

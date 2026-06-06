@@ -63,7 +63,26 @@ sudo ./svc.sh install github-runner && sudo ./svc.sh start
 ### 5. GitHub Actions secrets (repo: flowbaker/workflowv2)
 
 `GARAGE_KEY_ID`, `GARAGE_KEY_SECRET`, `GOOGLE_GENERATIVE_AI_API_KEY`,
-`GEMINI_MODEL`, `SLACK_TOKEN`, (opsiyonel) `LANGFUSE_*`. Bkz. `.env.example`.
+`GEMINI_MODEL`, `BETTER_AUTH_SECRET` (zorunlu — `openssl rand -base64 32`),
+`SLACK_TOKEN`, (opsiyonel) `LANGFUSE_*`. Bkz. `.env.example`.
+
+Sosyal login (opsiyonel): `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` ve/veya
+`GH_OAUTH_CLIENT_ID` / `GH_OAUTH_CLIENT_SECRET`. Env yoksa o provider kapalı,
+email/şifre login yine çalışır.
+
+### 5a. Kullanıcı auth'u (Better Auth)
+
+App kendi kullanıcı auth'unu Better Auth ile yapar; kullanıcı/session **Mongo'da**
+(`mongodbAdapter`, migration yok). Spaces artık giriş yapan kullanıcının
+sahipliğine bağlı (kişisel model) — `x-space-id` header'ı sunucuda doğrulanır.
+
+Google sosyal login için Google Cloud Console'da OAuth2 client aç, redirect URI:
+
+```
+https://builder.quollhq.com/api/auth/callback/google
+```
+
+(GitHub için: `.../api/auth/callback/github`.)
 
 ## Deploy
 

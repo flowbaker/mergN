@@ -29,6 +29,7 @@
     "@langfuse/tracing": "^5.4.1",
     "@opentelemetry/sdk-node": "^0.218.0",
     "ai": "^6.0.196",
+    "better-auth": "^1.6.14",
     "hono": "^4.12.23",
     "mongodb": "^7.2.0",
     "tsx": "^4.22.4",

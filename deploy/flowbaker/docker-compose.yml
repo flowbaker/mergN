@@ -8,11 +8,17 @@ services:
     ports:
       - "127.0.0.1:8787:8787"
     environment:
+      NODE_ENV: production
       PORT: "8787"
       WEB_DIR: ./web/dist
       STORE_DRIVER: mongo
       MONGO_URL: mongodb://mongo:27017
       MONGO_DB: workflow
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
       VAULT_DRIVER: s3
       S3_BUCKET: ${S3_BUCKET:-workflow-secrets}
       S3_REGION: garage

@@ -39,9 +39,12 @@ import type {
   Wire,
   WorkflowOp,
 } from "./types";
+import { useNavigate } from "@tanstack/react-router";
 import { summarizeWorkflow, outputsOf } from "./lineage";
+import { useAuth } from "./authContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { LogOut } from "lucide-react";
 
 const wireKey = (w: Wire) => `${w.from}.${w.fromOutput}->${w.to}.${w.toInput}`;
 
@@ -107,7 +110,14 @@ function Canvas({
   );
 }
 
-export function App() {
+export function App({
+  spaceId,
+  routeWorkflowId,
+}: {
+  spaceId: string;
+  routeWorkflowId: string | null;
+}) {
+  const navigate = useNavigate();
   const [funcs, setFuncs] = useState<AuthoredFunc[]>([]);
   const [wires, setWires] = useState<Wire[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -173,6 +183,7 @@ export function App() {
   );
 
   const saveMutation = useSaveWorkflow();
+  const { user, requireAuth, signOut } = useAuth();
   const { data: connections = NO_CONNECTIONS } = useConnections();
   const selected = funcs.find((f) => f.id === selectedId) ?? null;
 
@@ -407,16 +418,43 @@ export function App() {
     });
     setWorkflowId(id);
     setSavedTrigger(trigger);
+    if (spaceId) {
+      void navigate({
+        to: "/s/$spaceId/w/$workflowId",
+        params: { spaceId, workflowId: id },
+      });
+    }
+  };
+
+  const requestSave = () => {
+    if (!requireAuth(() => void save())) return;
+    void save();
+  };
+
+  const openWorkflow = (id: string) => {
+    if (spaceId) {
+      void navigate({
+        to: "/s/$spaceId/w/$workflowId",
+        params: { spaceId, workflowId: id },
+      });
+    } else {
+      void load(id);
+    }
+  };
+
+  const newWorkflow = () => {
+    reset();
+    if (spaceId) void navigate({ to: "/s/$spaceId", params: { spaceId } });
   };
 
   useEffect(() => {
-    if (!autoSave || funcs.length === 0) return;
+    if (!autoSave || funcs.length === 0 || !user) return;
     const t = setTimeout(() => {
       setAutoSave(false);
       void save();
     }, 350);
     return () => clearTimeout(t);
-  }, [autoSave, funcs]);
+  }, [autoSave, funcs, user]);
 
   const load = async (id: string) => {
     const wf = await fetchWorkflow(id);
@@ -431,6 +469,15 @@ export function App() {
     setSavedTrigger(wf.trigger ?? { kind: "manual" });
     setInputForm(wf.inputForm ?? null);
   };
+
+  useEffect(() => {
+    if (routeWorkflowId) {
+      if (routeWorkflowId !== workflowId) void load(routeWorkflowId);
+    } else if (workflowId) {
+      reset();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routeWorkflowId]);
 
   return (
     <div className="flex h-screen w-screen flex-col bg-background text-foreground">
@@ -454,6 +501,31 @@ export function App() {
               <Moon className="h-4 w-4" />
             )}
           </Button>
+          {user ? (
+            <div className="flex items-center gap-1.5">
+              <span className="max-w-32 truncate text-xs text-muted-foreground">
+                {user.email}
+              </span>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-8 w-8"
+                title="Sign out"
+                onClick={signOut}
+              >
+                <LogOut className="h-4 w-4" />
+              </Button>
+            </div>
+          ) : (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8"
+              onClick={() => requireAuth()}
+            >
+              Sign in
+            </Button>
+          )}
         </header>
       </div>
 
@@ -462,13 +534,13 @@ export function App() {
           <div className="min-h-0 flex-1">
             <WorkflowsPanel
               currentId={workflowId}
-              onLoad={load}
+              onLoad={openWorkflow}
               name={name}
               onName={setName}
-              onSave={save}
+              onSave={requestSave}
               saving={saveMutation.isPending}
               canSave={funcs.length > 0}
-              onNew={reset}
+              onNew={newWorkflow}
             />
           </div>
           <ConnectionsPanel missing={missingProviders} />

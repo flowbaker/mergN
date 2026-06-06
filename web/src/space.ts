@@ -8,7 +8,7 @@ function read(): string {
   } catch {
     void 0;
   }
-  return "default";
+  return "";
 }
 
 let current = read();
@@ -18,15 +18,16 @@ export function getSpace(): string {
 }
 
 export function setSpace(id: string): void {
-  if (!SAFE.test(id)) return;
+  if (id && !SAFE.test(id)) return;
   current = id;
   try {
-    localStorage.setItem(KEY, id);
+    if (id) localStorage.setItem(KEY, id);
+    else localStorage.removeItem(KEY);
   } catch {
     void 0;
   }
 }
 
 export function spaceHeaders(): Record<string, string> {
-  return { "x-space-id": current };
+  return current ? { "x-space-id": current } : {};
 }

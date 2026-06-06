@@ -5,6 +5,7 @@ import { Sparkles, ArrowUpRight, Brain, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Markdown } from "./Markdown";
 import { spaceHeaders } from "./space";
+import { useAuth } from "./authContext";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
@@ -175,6 +176,7 @@ export function Chat({
   onReady?: (send: (text: string) => void) => void;
 }) {
   const { messages, sendMessage, status } = useChat();
+  const { requireAuth } = useAuth();
   const [input, setInput] = useState("");
   const taRef = useRef<HTMLTextAreaElement>(null);
 
@@ -313,9 +315,13 @@ export function Chat({
     e.preventDefault();
     const text = input.trim();
     if (!text) return;
-    send(text);
-    setInput("");
-    if (taRef.current) taRef.current.style.height = "auto";
+    const fire = () => {
+      send(text);
+      setInput("");
+      if (taRef.current) taRef.current.style.height = "auto";
+    };
+    if (!requireAuth(fire)) return;
+    fire();
   };
 
   return (

@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { Check, ChevronsUpDown, Plus } from "lucide-react";
 import { useSpaces, useCreateSpace } from "./queries";
-import { getSpace, setSpace } from "./space";
-
-const SAFE = /^[A-Za-z0-9_-]+$/;
+import { getSpace } from "./space";
+import { useAuth } from "./authContext";
 
 export function SpaceSwitcher() {
   const current = getSpace();
+  const navigate = useNavigate();
+  const { user, requireAuth } = useAuth();
   const { data: spaces = [] } = useSpaces();
   const createSpace = useCreateSpace();
   const [open, setOpen] = useState(false);
@@ -27,31 +29,38 @@ export function SpaceSwitcher() {
   }, [open]);
 
   const switchTo = (id: string) => {
-    if (id === current) {
-      setOpen(false);
-      return;
-    }
-    setSpace(id);
-    window.location.reload();
+    setOpen(false);
+    if (id === current) return;
+    void navigate({ to: "/s/$spaceId", params: { spaceId: id } });
   };
 
   const create = () => {
-    const id = name.trim();
-    if (!SAFE.test(id)) return;
-    createSpace.mutate(id, { onSuccess: () => switchTo(id) });
+    const label = name.trim();
+    if (!label) return;
+    const fire = () =>
+      createSpace.mutate(label, { onSuccess: (s) => switchTo(s.id) });
+    if (!requireAuth(fire)) return;
+    fire();
   };
 
-  const ids = spaces.map((s) => s.id);
-  if (!ids.includes(current)) ids.unshift(current);
+  const currentName =
+    spaces.find((s) => s.id === current)?.name ??
+    (user ? "Workspace" : "Sign in to start");
 
   return (
     <div ref={ref} className="relative">
       <button
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => {
+          if (!user) {
+            requireAuth();
+            return;
+          }
+          setOpen((o) => !o);
+        }}
         className="flex items-center gap-1.5 rounded-lg border border-border/50 bg-background-subtle px-2.5 py-1.5 text-xs font-medium text-foreground/90 transition-colors hover:border-border"
       >
         <span className="size-1.5 rounded-full bg-emerald-500" />
-        <span className="max-w-32 truncate">{current}</span>
+        <span className="max-w-32 truncate">{currentName}</span>
         <ChevronsUpDown className="h-3.5 w-3.5 text-muted-foreground" />
       </button>
 
@@ -61,14 +70,14 @@ export function SpaceSwitcher() {
             Spaces
           </div>
           <div className="max-h-64 overflow-auto">
-            {ids.map((id) => (
+            {spaces.map((s) => (
               <button
-                key={id}
-                onClick={() => switchTo(id)}
+                key={s.id}
+                onClick={() => switchTo(s.id)}
                 className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[13px] text-foreground/85 transition-colors hover:bg-secondary"
               >
-                <span className="flex-1 truncate">{id}</span>
-                {id === current && (
+                <span className="flex-1 truncate">{s.name}</span>
+                {s.id === current && (
                   <Check className="h-3.5 w-3.5 shrink-0 text-emerald-400" />
                 )}
               </button>
@@ -85,12 +94,12 @@ export function SpaceSwitcher() {
                   if (e.key === "Enter") create();
                   if (e.key === "Escape") setCreating(false);
                 }}
-                placeholder="space-id"
-                className="h-7 min-w-0 flex-1 rounded-md border border-border/50 bg-background px-2 font-mono text-xs outline-none transition-colors focus:border-foreground/20"
+                placeholder="Space name"
+                className="h-7 min-w-0 flex-1 rounded-md border border-border/50 bg-background px-2 text-xs outline-none transition-colors focus:border-foreground/20"
               />
               <button
                 onClick={create}
-                disabled={!SAFE.test(name.trim()) || createSpace.isPending}
+                disabled={!name.trim() || createSpace.isPending}
                 className="rounded-md bg-primary px-2 py-1 text-xs font-medium text-primary-foreground transition-opacity disabled:opacity-40"
               >
                 Add
