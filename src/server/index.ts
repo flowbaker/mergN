@@ -73,6 +73,29 @@ function funcToWire(func: FuncDefinition, title: string, summary: string) {
   };
 }
 
+function leanFunc(f: {
+  id: string;
+  title: string;
+  summary: string;
+  pure: boolean;
+  inputs: { name: string }[];
+  outputSchema: unknown;
+  requires: { provider: string }[];
+}) {
+  const s = f.outputSchema as
+    | { properties?: Record<string, unknown>; required?: string[] }
+    | undefined;
+  return {
+    id: f.id,
+    title: f.title,
+    summary: f.summary,
+    pure: f.pure,
+    inputs: f.inputs.map((p) => p.name),
+    outputs: s?.properties ? Object.keys(s.properties) : (s?.required ?? []),
+    requires: f.requires.map((r) => r.provider),
+  };
+}
+
 const { store, vault } = createStorage();
 const registry = createRegistry(store);
 const oauth = createOAuth({ store, vault, registry });
@@ -164,6 +187,27 @@ function makeTools(
       emit();
       return result;
     },
+    toModelOutput: ({ output }) => {
+      const r = output as {
+        name: string;
+        funcs: Parameters<typeof leanFunc>[0][];
+        wires: { from: string; fromOutput: string; to: string; toInput: string }[];
+        trigger: { kind: string };
+        inputForm?: { fields: { name: string }[] } | null;
+      };
+      return {
+        type: "json",
+        value: {
+          name: r.name,
+          steps: r.funcs.map(leanFunc),
+          wires: r.wires,
+          trigger: r.trigger,
+          inputForm: r.inputForm
+            ? { fields: r.inputForm.fields.map((f) => f.name) }
+            : null,
+        },
+      };
+    },
   }),
   search_providers: tool({
     description:
@@ -218,6 +262,7 @@ function makeTools(
       const r = await authorFunc(registry, { spaceId, intent, provider }, meta);
       return funcToWire(r.def, r.title, r.summary);
     },
+    toModelOutput: ({ output }) => ({ type: "json", value: leanFunc(output) }),
   }),
   update_func: tool({
     description:
@@ -238,6 +283,7 @@ function makeTools(
       const r = await authorFunc(registry, { spaceId, intent, provider }, meta);
       return funcToWire({ ...r.def, id }, r.title, r.summary);
     },
+    toModelOutput: ({ output }) => ({ type: "json", value: leanFunc(output) }),
   }),
   delete_func: tool({
     description:
