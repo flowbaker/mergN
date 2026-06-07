@@ -1,5 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useChat } from "@ai-sdk/react";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { DefaultChatTransport, type UIMessage } from "ai";
 import type { AuthoredFunc, InputForm, Wire, WorkflowOp } from "./types";
@@ -19,10 +21,10 @@ interface ToolPart {
   output?: unknown;
 }
 
-const EXAMPLES = [
-  "When a Stripe payment succeeds, send a receipt to Slack",
-  "Summarize new signups and email me a daily digest",
-  "On a new GitHub issue, post a triage note to Discord",
+const EXAMPLE_KEYS = [
+  "chat.example.stripeSlack",
+  "chat.example.digest",
+  "chat.example.github",
 ];
 
 interface Usage {
@@ -41,28 +43,17 @@ interface DesignItem {
   status: "active" | "pending" | "done";
 }
 
-const TOOL_VERB: Record<string, string> = {
-  design_workflow: "Designing workflow",
-  author_func: "Writing a step",
-  update_func: "Updating a step",
-  delete_func: "Removing a step",
-  wire: "Wiring steps",
-  unwire: "Disconnecting",
-  create_provider: "Creating provider",
-  search_providers: "Searching providers",
-  repair_provider: "Repairing provider",
-  list_connections: "Checking connections",
-  request_connection: "Opening connection setup",
-};
-
 function fmtElapsed(ms: number): string {
   const s = Math.floor(ms / 1000);
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
 
-function streamLabel(messages: { role: string; parts: ToolPart[] }[]): string {
+function streamLabel(
+  messages: { role: string; parts: ToolPart[] }[],
+  t: TFunction,
+): string {
   const last = messages[messages.length - 1];
-  if (!last || last.role !== "assistant") return "Thinking…";
+  if (!last || last.role !== "assistant") return t("chat.thinking");
   for (const p of last.parts) {
     if (p.type === "data-design") {
       const items =
@@ -70,7 +61,7 @@ function streamLabel(messages: { role: string; parts: ToolPart[] }[]): string {
       const active = items.find((it) => it.status === "active");
       if (active) return active.label;
       if (items.length && items.some((it) => it.status !== "done"))
-        return "Designing workflow";
+        return t("chat.designingWorkflow");
     }
   }
   for (const p of last.parts) {
@@ -79,16 +70,18 @@ function streamLabel(messages: { role: string; parts: ToolPart[] }[]): string {
       p.state &&
       p.state !== "output-available"
     ) {
-      return TOOL_VERB[p.type.replace("tool-", "")] ?? "Working…";
+      const name = p.type.replace("tool-", "");
+      return t(`chat.verb.${name}`, { defaultValue: t("chat.working") });
     }
   }
   const lastPart = last.parts[last.parts.length - 1];
-  if (lastPart?.type === "reasoning") return "Thinking…";
-  if (lastPart?.type === "text") return "Writing…";
-  return "Working…";
+  if (lastPart?.type === "reasoning") return t("chat.thinking");
+  if (lastPart?.type === "text") return t("chat.writing");
+  return t("chat.working");
 }
 
 function DesignProgress({ items }: { items: DesignItem[] }) {
+  const { t } = useTranslation();
   const allDone = items.length > 0 && items.every((i) => i.status === "done");
   const doneCount = items.filter((i) => i.status === "done").length;
   const pct = items.length ? Math.round((doneCount / items.length) * 100) : 0;
@@ -96,8 +89,8 @@ function DesignProgress({ items }: { items: DesignItem[] }) {
   const [, force] = useState(0);
   useEffect(() => {
     if (allDone) return;
-    const t = setInterval(() => force((n) => n + 1), 250);
-    return () => clearInterval(t);
+    const timer = setInterval(() => force((n) => n + 1), 250);
+    return () => clearInterval(timer);
   }, [allDone]);
   const elapsed = Date.now() - startRef.current;
 
@@ -106,10 +99,10 @@ function DesignProgress({ items }: { items: DesignItem[] }) {
       <div className="flex items-center gap-2.5">
         <div className="min-w-0 flex-1">
           <div className="text-sm font-medium leading-tight text-foreground">
-            {allDone ? "Workflow ready" : "Designing workflow"}
+            {allDone ? t("chat.workflowReady") : t("chat.designingWorkflow")}
           </div>
           <div className="text-xs leading-tight text-muted-foreground">
-            {doneCount} of {items.length} steps
+            {t("chat.stepsProgress", { done: doneCount, total: items.length })}
           </div>
         </div>
         <span className="shrink-0 font-mono text-[11px] text-muted-foreground/70">
@@ -175,6 +168,7 @@ const MessageItem = memo(function MessageItem({
 }: {
   message: UIMessage;
 }) {
+  const { t } = useTranslation();
   const isUser = message.role === "user";
   return (
     <div
@@ -210,7 +204,7 @@ const MessageItem = memo(function MessageItem({
               >
                 <div className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-muted-foreground/70">
                   <Brain className="size-3.5" />
-                  Thinking
+                  {t("chat.thinkingLabel")}
                 </div>
                 <div className="text-muted-foreground">
                   <Markdown className="text-[13px]">{text}</Markdown>
@@ -304,6 +298,7 @@ function ChatThread({
   onReady,
   initialMessages,
 }: ChatProps & { initialMessages: UIMessage[] }) {
+  const { t, i18n } = useTranslation();
   const stateRef = useRef("");
   stateRef.current = workflowState ?? "";
   const qc = useQueryClient();
@@ -502,12 +497,12 @@ function ChatThread({
     <div className="flex h-full w-full flex-col">
       <div className="flex items-center gap-2 px-3 py-1.5">
         <span className="ml-auto rounded bg-muted/60 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground/80">
-          {totalTokens.toLocaleString()} tokens
+          {t("chat.tokens", { n: totalTokens.toLocaleString(i18n.language) })}
         </span>
         {messages.length > 0 && (
           <button
             type="button"
-            title="New chat"
+            title={t("chat.newChat")}
             disabled={status === "streaming" || status === "submitted"}
             onClick={onNewChat}
             className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
@@ -525,25 +520,27 @@ function ChatThread({
                 <Sparkles className="h-5 w-5 text-foreground/80" />
               </div>
               <h2 className="mt-4 text-[15px] font-medium text-foreground">
-                Build a workflow in plain language
+                {t("chat.emptyTitle")}
               </h2>
               <p className="mt-1 max-w-xs text-[13px] leading-relaxed text-muted-foreground">
-                Describe what should happen. I'll wire up the trigger and steps
-                for you.
+                {t("chat.emptySubtitle")}
               </p>
 
               <div className="mt-6 flex w-full flex-col gap-2">
-                {EXAMPLES.map((ex) => (
-                  <button
-                    key={ex}
-                    type="button"
-                    onClick={() => useExample(ex)}
-                    className="group flex items-center gap-2.5 rounded-xl border border-border/50 bg-background-subtle px-3 py-2.5 text-left text-[13px] text-foreground/80 transition-colors hover:border-border hover:bg-secondary hover:text-foreground"
-                  >
-                    <span className="flex-1 leading-snug">{ex}</span>
-                    <ArrowUpRight className="h-4 w-4 shrink-0 text-muted-foreground/50 transition-colors group-hover:text-foreground/70" />
-                  </button>
-                ))}
+                {EXAMPLE_KEYS.map((key) => {
+                  const ex = t(key);
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => useExample(ex)}
+                      className="group flex items-center gap-2.5 rounded-xl border border-border/50 bg-background-subtle px-3 py-2.5 text-left text-[13px] text-foreground/80 transition-colors hover:border-border hover:bg-secondary hover:text-foreground"
+                    >
+                      <span className="flex-1 leading-snug">{ex}</span>
+                      <ArrowUpRight className="h-4 w-4 shrink-0 text-muted-foreground/50 transition-colors group-hover:text-foreground/70" />
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -554,7 +551,10 @@ function ChatThread({
             <div className="flex items-center gap-2 px-1 text-xs text-muted-foreground">
               <Loader2 className="h-3 w-3 animate-spin text-muted-foreground/70" />
               <span>
-                {streamLabel(messages as { role: string; parts: ToolPart[] }[])}
+                {streamLabel(
+                  messages as { role: string; parts: ToolPart[] }[],
+                  t,
+                )}
               </span>
             </div>
           )}
@@ -577,7 +577,7 @@ function ChatThread({
                 submit(e);
               }
             }}
-            placeholder="Message the builder…"
+            placeholder={t("chat.placeholder")}
             className="max-h-52 min-h-20 flex-1 resize-none self-stretch border-none bg-transparent px-1 py-1 text-sm leading-relaxed text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-0"
           />
           <Button

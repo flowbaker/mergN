@@ -1,4 +1,5 @@
 import { Handle, Position, type NodeProps } from "@xyflow/react";
+import { useTranslation } from "react-i18next";
 import { ArrowLeftRight, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -38,6 +39,7 @@ function PortDot({
 }
 
 export function FuncNode({ data, selected }: NodeProps) {
+  const { t } = useTranslation();
   const d = data as unknown as FuncNodeData;
   const statusRing =
     d.status === "done"
@@ -121,7 +123,7 @@ export function FuncNode({ data, selected }: NodeProps) {
 
       {d.needsConnection && (
         <div
-          title="needs connection"
+          title={t("connections.needsConnection")}
           className="absolute -right-1 -top-1 size-2.5 rounded-full bg-amber-500 ring-2 ring-background"
         />
       )}

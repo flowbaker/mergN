@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { ArrowLeftRight, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { AuthoredFunc } from "./types";
@@ -55,12 +56,13 @@ export function Pipeline({
   selectedId,
   onSelect,
 }: PipelineProps) {
+  const { t } = useTranslation();
   const { ordered, numberOf, sourceOf } = lineage(funcs, wires, configValues);
 
   if (funcs.length === 0 && triggerFields.length === 0) {
     return (
       <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-        Describe an automation in the chat to build a pipeline.
+        {t("pipeline.describe")}
       </div>
     );
   }
@@ -73,9 +75,11 @@ export function Pipeline({
             <div className="flex items-center justify-center rounded-xl bg-tone-amber/15 p-1.5 text-tone-amber-fg">
               <Zap className="h-3.5 w-3.5" />
             </div>
-            <span className="text-sm font-medium text-tone-amber-fg">Trigger</span>
+            <span className="text-sm font-medium text-tone-amber-fg">
+              {t("trigger.title")}
+            </span>
             <span className="ml-auto text-[11px] text-muted-foreground">
-              manual / api
+              {t("pipeline.manualApi")}
             </span>
           </div>
           {triggerFields.length > 0 && (
@@ -137,7 +141,7 @@ export function Pipeline({
                     )}
                     {needsConnection && (
                       <span className="text-[11px] text-tone-amber-fg">
-                        ⚠ needs connection
+                        ⚠ {t("connections.needsConnection")}
                       </span>
                     )}
                     {status && (

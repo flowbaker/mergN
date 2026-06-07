@@ -1,4 +1,5 @@
 import { Handle, Position, type NodeProps } from "@xyflow/react";
+import { useTranslation } from "react-i18next";
 import { Zap } from "lucide-react";
 
 interface TriggerNodeData {
@@ -7,6 +8,7 @@ interface TriggerNodeData {
 }
 
 export function TriggerNode({ data }: NodeProps) {
+  const { t } = useTranslation();
   const d = data as unknown as TriggerNodeData;
   return (
     <div className="w-56 rounded-3xl border border-tone-amber/40 bg-tone-amber/5 p-1">
@@ -16,9 +18,11 @@ export function TriggerNode({ data }: NodeProps) {
             <Zap className="h-4 w-4" />
           </div>
           <div className="flex min-w-0 flex-1 flex-col items-start justify-center gap-1 px-1">
-            <h3 className="text-base font-medium leading-none">Trigger</h3>
+            <h3 className="text-base font-medium leading-none">
+              {t("trigger.title")}
+            </h3>
             <p className="text-xs capitalize leading-none text-muted-foreground">
-              {d.kind ?? "manual"}
+              {t(`trigger.kind.${d.kind ?? "manual"}`)}
             </p>
           </div>
         </div>

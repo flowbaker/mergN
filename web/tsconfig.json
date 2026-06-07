@@ -6,6 +6,7 @@
     "moduleResolution": "Bundler",
     "jsx": "react-jsx",
     "strict": true,
+    "resolveJsonModule": true,
     "skipLibCheck": true,
     "noEmit": true,
     "ignoreDeprecations": "6.0",

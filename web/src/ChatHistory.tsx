@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { MessageSquare, Trash2, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -18,6 +19,7 @@ export function ChatHistory({
   onNew: () => void;
   onDelete: (id: string) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="flex h-full w-full flex-col">
       <div className="px-2 pt-2">
@@ -26,7 +28,7 @@ export function ChatHistory({
           className="flex w-full items-center gap-2 rounded-lg bg-background-subtle px-2.5 py-1.5 text-left text-xs font-medium text-foreground/80 transition-colors hover:bg-secondary"
         >
           <Plus className="size-4" />
-          New chat
+          {t("history.newChat")}
         </button>
       </div>
 
@@ -44,7 +46,7 @@ export function ChatHistory({
 
         {!isLoading && conversations.length === 0 && (
           <div className="px-2 py-6 text-center text-xs text-muted-foreground">
-            No conversations yet.
+            {t("history.empty")}
           </div>
         )}
 
@@ -85,7 +87,7 @@ export function ChatHistory({
                   onDelete(c.id);
                 }}
                 className="flex size-6 shrink-0 items-center justify-center rounded-lg text-muted-foreground opacity-0 transition-all hover:bg-destructive/15 hover:text-destructive group-hover:opacity-100"
-                title="Delete"
+                title={t("common.delete")}
               >
                 <Trash2 className="size-3.5" />
               </button>

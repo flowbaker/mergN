@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 
 export type RightTab = "chat" | "history" | "node";
@@ -40,20 +41,21 @@ export function RightPanel({
   history: ReactNode;
   node: ReactNode;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="flex w-[400px] shrink-0 flex-col overflow-hidden rounded-2xl border border-border/40 bg-muted/40">
       <div className="flex shrink-0 gap-0.5 p-1">
         <TabButton active={active === "chat"} onClick={() => onTab("chat")}>
-          Chat
+          {t("panel.chat")}
         </TabButton>
         <TabButton
           active={active === "history"}
           onClick={() => onTab("history")}
         >
-          History
+          {t("panel.history")}
         </TabButton>
         <TabButton active={active === "node"} onClick={() => onTab("node")}>
-          Node
+          {t("panel.node")}
         </TabButton>
       </div>
       <div className={cn("min-h-0 flex-1", active === "chat" ? "flex" : "hidden")}>

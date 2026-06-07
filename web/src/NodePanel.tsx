@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import { ArrowLeftRight, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { AuthoredFunc, RunStepData } from "./types";
@@ -67,10 +68,11 @@ export function NodePanel({
   run?: RunStepData;
   onConfigChange: (port: string, value: string) => void;
 }) {
+  const { t } = useTranslation();
   if (!func) {
     return (
       <div className="flex h-full items-center justify-center p-8 text-center text-sm text-muted-foreground">
-        Select a step to see its details, settings, and generated code.
+        {t("node.selectStep")}
       </div>
     );
   }
@@ -112,7 +114,7 @@ export function NodePanel({
                     : "bg-tone-blue/12 text-tone-blue-fg",
                 )}
               >
-                {func.pure ? "transform" : "effectful"}
+                {func.pure ? t("node.transform") : t("node.effectful")}
               </span>
             </div>
             {func.summary && (
@@ -130,7 +132,7 @@ export function NodePanel({
           <div className="space-y-2.5 rounded-2xl border border-border/50 bg-background-subtle/40 p-3.5">
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/70">
-                Last run
+                {t("node.lastRun")}
               </span>
               <span className="ml-auto flex items-center gap-1.5 text-[11px] text-muted-foreground">
                 <span
@@ -139,21 +141,27 @@ export function NodePanel({
                     RUN_DOT[run.status] ?? "bg-muted-foreground",
                   )}
                 />
-                {run.status}
+                {t(`status.${run.status}`, { defaultValue: run.status })}
               </span>
             </div>
             <div className="space-y-1">
-              <div className="text-[10px] text-muted-foreground/60">input</div>
+              <div className="text-[10px] text-muted-foreground/60">
+                {t("node.inputLabel")}
+              </div>
               <JsonBlock value={run.resolvedInput ?? {}} />
             </div>
             {run.error ? (
               <div className="space-y-1">
-                <div className="text-[10px] text-tone-rose-fg">error</div>
+                <div className="text-[10px] text-tone-rose-fg">
+                  {t("node.errorLabel")}
+                </div>
                 <JsonBlock value={run.error} tone="error" />
               </div>
             ) : (
               <div className="space-y-1">
-                <div className="text-[10px] text-muted-foreground/60">output</div>
+                <div className="text-[10px] text-muted-foreground/60">
+                  {t("node.outputLabel")}
+                </div>
                 <JsonBlock value={run.output ?? {}} tone="out" />
               </div>
             )}
@@ -161,7 +169,7 @@ export function NodePanel({
         )}
 
         {configPorts.length > 0 && (
-          <Section title="Settings">
+          <Section title={t("node.settings")}>
             <div className="space-y-2.5">
               {configPorts.map((p) => (
                 <div key={p.name} className="space-y-1">
@@ -170,7 +178,7 @@ export function NodePanel({
                     <TypePill>{p.type}</TypePill>
                     {!p.required && (
                       <span className="shrink-0 text-[10px] text-muted-foreground/60">
-                        optional
+                        {t("node.optional")}
                       </span>
                     )}
                   </label>
@@ -187,9 +195,11 @@ export function NodePanel({
           </Section>
         )}
 
-        <Section title="Inputs">
+        <Section title={t("node.inputs")}>
           {dataPorts.length === 0 ? (
-            <div className="text-xs text-muted-foreground/70">none</div>
+            <div className="text-xs text-muted-foreground/70">
+              {t("node.none")}
+            </div>
           ) : (
             <div className="space-y-1.5">
               {dataPorts.map((p) => (
@@ -203,7 +213,7 @@ export function NodePanel({
                   <TypePill>{p.type}</TypePill>
                   {!p.required && (
                     <span className="shrink-0 text-[10px] text-muted-foreground/60">
-                      optional
+                      {t("node.optional")}
                     </span>
                   )}
                 </div>
@@ -212,7 +222,7 @@ export function NodePanel({
           )}
         </Section>
 
-        <Section title="Output">
+        <Section title={t("node.output")}>
           {outs.length === 0 ? (
             <div className="text-xs text-muted-foreground/70">—</div>
           ) : (
@@ -231,9 +241,11 @@ export function NodePanel({
 
         {!func.pure && (
           <>
-            <Section title="Connections">
+            <Section title={t("node.connections")}>
               {func.requires.length === 0 ? (
-                <div className="text-xs text-muted-foreground/70">none</div>
+                <div className="text-xs text-muted-foreground/70">
+              {t("node.none")}
+            </div>
               ) : (
                 <div className="space-y-2">
                   {func.requires.map((r) => (
@@ -243,14 +255,14 @@ export function NodePanel({
               )}
             </Section>
 
-            <Section title="Safety">
+            <Section title={t("node.safety")}>
               <div className="flex flex-wrap gap-1.5">
                 <span className="rounded-md bg-muted px-2 py-1 text-[11px] text-muted-foreground">
-                  danger ·{" "}
+                  {t("node.danger")} ·{" "}
                   <span className="text-foreground/80">{func.dangerClass}</span>
                 </span>
                 <span className="rounded-md bg-muted px-2 py-1 text-[11px] text-muted-foreground">
-                  idempotency ·{" "}
+                  {t("node.idempotency")} ·{" "}
                   <span className="text-foreground/80">
                     {func.idempotency?.mechanism}
                   </span>

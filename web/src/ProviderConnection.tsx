@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +11,7 @@ import {
 } from "./queries";
 
 export function ProviderConnection({ provider }: { provider: string }) {
+  const { t } = useTranslation();
   const { data: conns = [] } = useConnections();
   const auth = useProviderAuth(provider);
   const create = useCreateConnection();
@@ -27,13 +29,13 @@ export function ProviderConnection({ provider }: { provider: string }) {
         <span className="min-w-0 truncate font-mono">{provider}</span>
         <Badge variant="secondary" className="shrink-0 gap-1">
           <span className="size-1.5 rounded-full bg-emerald-500" />
-          connected
+          {t("connections.connected")}
         </Badge>
         <button
           onClick={() => del.mutate(conn.id)}
           className="ml-auto shrink-0 text-muted-foreground hover:text-destructive"
         >
-          disconnect
+          {t("connections.disconnect")}
         </button>
       </div>
     );
@@ -77,7 +79,7 @@ export function ProviderConnection({ provider }: { provider: string }) {
           disabled={missingRequired || create.isPending}
           onClick={submit}
         >
-          Connect
+          {t("connectionDialog.connect")}
         </Button>
       </div>
     </div>

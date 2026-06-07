@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { useWorkflows, useDeleteWorkflow } from "./queries";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -22,6 +23,7 @@ export function WorkflowsPanel({
   canSave: boolean;
   onNew: () => void;
 }) {
+  const { t, i18n } = useTranslation();
   const { data: items = [], isLoading } = useWorkflows();
   const del = useDeleteWorkflow();
 
@@ -31,7 +33,7 @@ export function WorkflowsPanel({
         <input
           value={name}
           onChange={(e) => onName(e.target.value)}
-          placeholder="Untitled workflow"
+          placeholder={t("workflows.untitled")}
           spellCheck={false}
           className="min-w-0 flex-1 bg-transparent text-sm font-medium text-foreground outline-none placeholder:text-muted-foreground/50"
         />
@@ -40,19 +42,21 @@ export function WorkflowsPanel({
           disabled={!canSave || saving}
           className="shrink-0 rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:pointer-events-none disabled:opacity-40"
         >
-          {saving ? "saving…" : "Save"}
+          {saving ? t("common.saving") : t("common.save")}
         </button>
       </div>
 
       <div className="px-2 pt-2">
         <div className="flex items-center gap-2 rounded-lg bg-background-subtle px-2.5 py-1.5">
-          <span className="text-xs font-medium text-foreground/80">Saved</span>
+          <span className="text-xs font-medium text-foreground/80">
+            {t("workflows.saved")}
+          </span>
           <span className="rounded bg-muted/60 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground/70">
             {items.length}
           </span>
           <button
             onClick={onNew}
-            title="New workflow"
+            title={t("workflows.newWorkflow")}
             className="ml-auto flex size-5 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           >
             <Plus className="size-4" />
@@ -73,7 +77,7 @@ export function WorkflowsPanel({
           ))}
         {!isLoading && items.length === 0 && (
           <div className="px-2 py-6 text-center text-xs text-muted-foreground">
-            No saved workflows yet.
+            {t("workflows.empty")}
           </div>
         )}
         {items.map((it) => {
@@ -103,8 +107,10 @@ export function WorkflowsPanel({
                   {it.name}
                 </div>
                 <div className="truncate text-[11px] text-muted-foreground">
-                  {it.funcCount} funcs ·{" "}
-                  {new Date(it.updatedAt).toLocaleDateString()}
+                  {t("workflows.meta", {
+                    n: it.funcCount,
+                    date: new Date(it.updatedAt).toLocaleDateString(i18n.language),
+                  })}
                 </div>
               </div>
 
@@ -114,7 +120,7 @@ export function WorkflowsPanel({
                   del.mutate(it.id);
                 }}
                 className="flex size-6 shrink-0 items-center justify-center rounded-lg text-muted-foreground opacity-0 transition-all hover:bg-destructive/15 hover:text-destructive group-hover:opacity-100"
-                title="Delete"
+                title={t("common.delete")}
               >
                 <Trash2 className="size-3.5" />
               </button>

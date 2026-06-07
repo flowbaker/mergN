@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { BookOpenText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { AuthoredFunc, Wire } from "./types";
@@ -117,6 +118,7 @@ export function Story({
   selectedId,
   onSelect,
 }: StoryProps) {
+  const { t } = useTranslation();
   const { ordered, sourceOf } = lineage(funcs, wires, configValues);
 
   if (building && funcs.length === 0) {
@@ -131,11 +133,10 @@ export function Story({
             <BookOpenText className="h-5 w-5 text-foreground/80" />
           </div>
           <h2 className="mt-5 text-lg font-medium text-foreground">
-            Your workflow, in plain language
+            {t("story.title")}
           </h2>
           <p className="mx-auto mt-1.5 max-w-xs text-[13px] leading-relaxed text-muted-foreground">
-            Describe an automation in the chat — it appears here as readable
-            steps you can follow end to end.
+            {t("story.describe")}
           </p>
 
           <div className="mt-7 overflow-hidden rounded-2xl border border-border/40 bg-card/40 p-5 text-left">
@@ -323,15 +324,17 @@ export function Story({
                     )}
                     {provider && (
                       <span className="font-mono text-muted-foreground">
-                        via {provider}
+                        {t("story.via", { provider })}
                       </span>
                     )}
                     {needsConnection && (
-                      <span className="text-tone-amber-fg">⚠ needs connection</span>
+                      <span className="text-tone-amber-fg">
+                        ⚠ {t("connections.needsConnection")}
+                      </span>
                     )}
                     {unbound.length > 0 && (
                       <span className="text-tone-rose-fg">
-                        ⚠ missing{" "}
+                        ⚠ {t("story.missing")}{" "}
                         {unbound.map((r) => (
                           <Tok key={r.name} tone="bad">
                             {r.name}

@@ -1,0 +1,216 @@
+{
+  "common": {
+    "save": "Save",
+    "saving": "saving…",
+    "delete": "Delete",
+    "loading": "loading…",
+    "loadingPage": "Loading…",
+    "pleaseWait": "Please wait…",
+    "soon": "soon"
+  },
+  "auth": {
+    "welcomeBack": "Welcome back",
+    "getSetUp": "Let's get you set up",
+    "signinSubtitle": "Sign in to save and run your workflows.",
+    "signupSubtitle": "Create an account to keep building.",
+    "name": "Name",
+    "email": "Email",
+    "password": "Password",
+    "signIn": "Sign in",
+    "signOut": "Sign out",
+    "createAccount": "Create account",
+    "failed": "Authentication failed",
+    "toSignup": "Don't have an account? Sign up",
+    "toSignin": "Already have an account? Sign in"
+  },
+  "header": {
+    "switchToLight": "Switch to light",
+    "switchToDark": "Switch to dark",
+    "funcCount": "{{n}} func",
+    "configureTrigger": "Configure trigger",
+    "connectionsNeeded_one": "{{count}} connection needed",
+    "connectionsNeeded_other": "{{count}} connections needed"
+  },
+  "view": {
+    "story": "story",
+    "pipeline": "pipeline",
+    "graph": "graph"
+  },
+  "panel": {
+    "chat": "Chat",
+    "history": "History",
+    "node": "Node"
+  },
+  "chat": {
+    "tokens": "{{n}} tokens",
+    "newChat": "New chat",
+    "emptyTitle": "Build a workflow in plain language",
+    "emptySubtitle": "Describe what should happen. I'll wire up the trigger and steps for you.",
+    "placeholder": "Message the builder…",
+    "thinking": "Thinking…",
+    "writing": "Writing…",
+    "working": "Working…",
+    "designingWorkflow": "Designing workflow",
+    "workflowReady": "Workflow ready",
+    "stepsProgress": "{{done}} of {{total}} steps",
+    "thinkingLabel": "Thinking",
+    "verb": {
+      "design_workflow": "Designing workflow",
+      "author_func": "Writing a step",
+      "update_func": "Updating a step",
+      "delete_func": "Removing a step",
+      "wire": "Wiring steps",
+      "unwire": "Disconnecting",
+      "create_provider": "Creating provider",
+      "search_providers": "Searching providers",
+      "repair_provider": "Repairing provider",
+      "list_connections": "Checking connections",
+      "request_connection": "Opening connection setup"
+    },
+    "example": {
+      "stripeSlack": "When a Stripe payment succeeds, send a receipt to Slack",
+      "digest": "Summarize new signups and email me a daily digest",
+      "github": "On a new GitHub issue, post a triage note to Discord"
+    }
+  },
+  "history": {
+    "newChat": "New chat",
+    "empty": "No conversations yet."
+  },
+  "connections": {
+    "title": "Connections",
+    "empty": "No connections yet.",
+    "connected": "connected",
+    "connect": "connect",
+    "disconnect": "disconnect",
+    "needsConnection": "needs connection"
+  },
+  "pipeline": {
+    "describe": "Describe an automation in the chat to build a pipeline.",
+    "manualApi": "manual / api"
+  },
+  "story": {
+    "title": "Your workflow, in plain language",
+    "describe": "Describe an automation in the chat — it appears here as readable steps you can follow end to end.",
+    "via": "via {{provider}}",
+    "missing": "missing"
+  },
+  "workflows": {
+    "untitled": "Untitled workflow",
+    "saved": "Saved",
+    "newWorkflow": "New workflow",
+    "empty": "No saved workflows yet.",
+    "meta": "{{n}} funcs · {{date}}"
+  },
+  "spaces": {
+    "title": "Spaces",
+    "newSpace": "New space",
+    "spaceName": "Space name",
+    "workspace": "Workspace",
+    "signInToStart": "Sign in to start",
+    "add": "Add"
+  },
+  "status": {
+    "done": "done",
+    "failed": "failed",
+    "pending": "pending",
+    "running": "running"
+  },
+  "run": {
+    "run": "▶ Run",
+    "running": "running…",
+    "resume": "⟲ Resume",
+    "resumeTitle": "Re-run from the failed step, reusing earlier outputs",
+    "doneCount": "{{done}}/{{total}} done",
+    "invalidJson": "Invalid JSON input",
+    "updatingForm": "updating form…",
+    "makeFormTitle": "Generate an input form from the trigger fields",
+    "formLabel": "form",
+    "makeForm": "make form",
+    "required": "required",
+    "select": "Select…",
+    "saveForHistory": "Save the workflow to keep a history of its runs.",
+    "noRuns": "No runs yet.",
+    "selectStepCode": "Select a step to see its generated code.",
+    "copy": "copy",
+    "emptyState": "Run the workflow to see each step's state here.",
+    "fixWithAi": "🔧 fix with AI",
+    "steps_one": "{{count}} step",
+    "steps_other": "{{count}} steps",
+    "tab": {
+      "input": "input",
+      "state": "state",
+      "runs": "runs",
+      "code": "code"
+    }
+  },
+  "node": {
+    "selectStep": "Select a step to see its details, settings, and generated code.",
+    "transform": "transform",
+    "effectful": "effectful",
+    "lastRun": "Last run",
+    "inputLabel": "input",
+    "outputLabel": "output",
+    "errorLabel": "error",
+    "settings": "Settings",
+    "inputs": "Inputs",
+    "output": "Output",
+    "connections": "Connections",
+    "safety": "Safety",
+    "optional": "optional",
+    "none": "none",
+    "danger": "danger",
+    "idempotency": "idempotency"
+  },
+  "connectionDialog": {
+    "notConnected": "not connected",
+    "name": "Name",
+    "nameThis": "Name this connection (optional)",
+    "nameHelp": "A label to tell this apart from other connections, e.g. \"work\" or \"test\".",
+    "connectedOn": "Connected {{date}}",
+    "disconnect": "Disconnect",
+    "redirectInfo": "You'll be redirected to {{name}} to authorize access.",
+    "redirectInfoScope": "You'll be redirected to {{name}} to authorize access with scope {{scopes}}.",
+    "waitingAuth": "waiting for authorization…",
+    "connectWith": "Connect with {{name}}",
+    "useDifferentApp": "Use a different OAuth app",
+    "noOAuthApp": "No OAuth app is configured for {{name}}. Register one (redirect URL {{url}}), then paste its credentials.",
+    "clientId": "Client ID",
+    "clientSecret": "Client secret",
+    "authorizeUrl": "Authorize URL",
+    "tokenUrl": "Token URL",
+    "saveConnect": "Save & connect with {{name}}",
+    "credentials": "Credentials",
+    "required": "required",
+    "connect": "Connect",
+    "connecting": "connecting…",
+    "connectionFailed": "connection failed"
+  },
+  "trigger": {
+    "title": "Trigger",
+    "subtitle": "how this workflow starts",
+    "endpoint": "Endpoint",
+    "webhookInfo": "Send a POST here; the JSON body becomes the trigger output.",
+    "saveFirst": "Save the workflow first to get its webhook URL.",
+    "applyHint": "Save the workflow to apply this trigger.",
+    "kind": {
+      "manual": "Manual",
+      "webhook": "Webhook",
+      "schedule": "Schedule",
+      "poll": "Poll",
+      "event": "Event"
+    },
+    "desc": {
+      "manual": "Run by hand from the Run panel.",
+      "webhook": "Run when an HTTP POST hits a URL.",
+      "schedule": "Run on a cron schedule.",
+      "poll": "Check a service periodically for new data.",
+      "event": "Run on an event from a connected app."
+    }
+  },
+  "language": {
+    "label": "Language",
+    "en": "English",
+    "tr": "Türkçe"
+  }
+}

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { createPortal } from "react-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { Check, Copy, ExternalLink } from "lucide-react";
@@ -106,6 +107,7 @@ export function ConnectionDialog({
   connection?: ConnectionMeta;
   onClose: () => void;
 }) {
+  const { t, i18n } = useTranslation();
   const auth = useProviderAuth(provider);
   const isOAuth = auth.data?.type === "oauth2";
   const oauthStatus = useOAuthStatus(provider, !!isOAuth && !connection);
@@ -177,7 +179,7 @@ export function ConnectionDialog({
         qc.invalidateQueries({ queryKey: ["connections"] });
         requestClose();
       } else {
-        setOauthError(d.detail || "connection failed");
+        setOauthError(d.detail || t("connectionDialog.connectionFailed"));
       }
     };
     listenerRef.current = onMsg;
@@ -236,10 +238,10 @@ export function ConnectionDialog({
           {connection ? (
             <Badge variant="secondary" className="gap-1">
               <span className="size-1.5 rounded-full bg-emerald-500" />
-              connected
+              {t("connections.connected")}
             </Badge>
           ) : (
-            <Badge variant="outline">not connected</Badge>
+            <Badge variant="outline">{t("connectionDialog.notConnected")}</Badge>
           )}
           <button
             onClick={requestClose}
@@ -252,12 +254,14 @@ export function ConnectionDialog({
         {connection ? (
           <div className="space-y-3 text-sm">
             <div className="space-y-1">
-              <label className="text-xs font-medium">Name</label>
+              <label className="text-xs font-medium">
+                {t("connectionDialog.name")}
+              </label>
               <div className="flex gap-2">
                 <Input
                   value={nameDraft}
                   onChange={(e) => setNameDraft(e.target.value)}
-                  placeholder="Name this connection (optional)"
+                  placeholder={t("connectionDialog.nameThis")}
                 />
                 <Button
                   variant="outline"
@@ -274,12 +278,16 @@ export function ConnectionDialog({
                     )
                   }
                 >
-                  {update.isPending ? "…" : "Save"}
+                  {update.isPending ? "…" : t("common.save")}
                 </Button>
               </div>
             </div>
             <div className="text-xs text-muted-foreground">
-              Connected {new Date(connection.createdAt).toLocaleDateString()}
+              {t("connectionDialog.connectedOn", {
+                date: new Date(connection.createdAt).toLocaleDateString(
+                  i18n.language,
+                ),
+              })}
             </div>
             <Button
               variant="outline"
@@ -287,12 +295,12 @@ export function ConnectionDialog({
               disabled={del.isPending}
               onClick={disconnect}
             >
-              Disconnect
+              {t("connectionDialog.disconnect")}
             </Button>
           </div>
         ) : auth.isLoading ? (
           <div className="py-6 text-center text-xs text-muted-foreground">
-            loading…
+            {t("common.loading")}
           </div>
         ) : isOAuth ? (
           oauthStatus.isLoading ? (
@@ -302,17 +310,14 @@ export function ConnectionDialog({
           ) : configured ? (
             <div className="space-y-3">
               <p className="text-xs leading-relaxed text-muted-foreground">
-                You'll be redirected to {auth.data?.name} to authorize access
-                {auth.data?.scopes?.length ? (
-                  <>
-                    {" "}
-                    with scope{" "}
-                    <span className="font-mono text-foreground/80">
-                      {auth.data.scopes.join(", ")}
-                    </span>
-                  </>
-                ) : null}
-                .
+                {auth.data?.scopes?.length
+                  ? t("connectionDialog.redirectInfoScope", {
+                      name: auth.data?.name,
+                      scopes: auth.data.scopes.join(", "),
+                    })
+                  : t("connectionDialog.redirectInfo", {
+                      name: auth.data?.name,
+                    })}
               </p>
               {oauthError && (
                 <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">
@@ -321,8 +326,8 @@ export function ConnectionDialog({
               )}
               <Button className="w-full" disabled={oauthBusy} onClick={connectOAuth}>
                 {oauthBusy
-                  ? "waiting for authorization…"
-                  : `Connect with ${auth.data?.name}`}
+                  ? t("connectionDialog.waitingAuth")
+                  : t("connectionDialog.connectWith", { name: auth.data?.name })}
               </Button>
               <button
                 type="button"
@@ -330,7 +335,7 @@ export function ConnectionDialog({
                 onClick={() => deleteApp.mutate()}
                 className="w-full text-center text-[11px] text-muted-foreground/70 hover:text-muted-foreground"
               >
-                Use a different OAuth app
+                {t("connectionDialog.useDifferentApp")}
               </button>
             </div>
           ) : (
@@ -338,41 +343,39 @@ export function ConnectionDialog({
               {auth.data?.setupGuide ? (
                 <>
                   <Guide guide={auth.data.setupGuide} />
-                  <Divider label="Credentials" />
+                  <Divider label={t("connectionDialog.credentials")} />
                 </>
               ) : (
                 <p className="text-xs leading-relaxed text-muted-foreground">
-                  No OAuth app is configured for {auth.data?.name}. Register one
-                  (redirect URL{" "}
-                  <span className="font-mono text-foreground/70">
-                    {window.location.origin}/api/oauth/callback
-                  </span>
-                  ), then paste its credentials.
+                  {t("connectionDialog.noOAuthApp", {
+                    name: auth.data?.name,
+                    url: `${window.location.origin}/api/oauth/callback`,
+                  })}
                 </p>
               )}
               <Input
                 value={clientId}
                 onChange={(e) => setClientId(e.target.value)}
-                placeholder="Client ID"
+                placeholder={t("connectionDialog.clientId")}
                 autoFocus
               />
               <Input
                 value={clientSecret}
                 onChange={(e) => setClientSecret(e.target.value)}
                 type="password"
-                placeholder="Client secret"
+                placeholder={t("connectionDialog.clientSecret")}
               />
               {needsEndpoints && (
                 <>
                   <Input
                     value={authUrl}
                     onChange={(e) => setAuthUrl(e.target.value)}
-                    placeholder="Authorize URL"
+                    placeholder={t("connectionDialog.authorizeUrl")}
                   />
                   <Input
                     value={tokenUrl}
                     onChange={(e) => setTokenUrl(e.target.value)}
-                    placeholder="Token URL"
+                    placeholder={t("connectionDialog.tokenUrl")}
                   />
                 </>
               )}
@@ -393,10 +396,12 @@ export function ConnectionDialog({
                 onClick={saveAndConnect}
               >
                 {saveApp.isPending
-                  ? "saving…"
+                  ? t("common.saving")
                   : oauthBusy
-                    ? "waiting for authorization…"
-                    : `Save & connect with ${auth.data?.name}`}
+                    ? t("connectionDialog.waitingAuth")
+                    : t("connectionDialog.saveConnect", {
+                        name: auth.data?.name,
+                      })}
               </Button>
             </div>
           )
@@ -405,7 +410,7 @@ export function ConnectionDialog({
             {auth.data?.setupGuide && (
               <>
                 <Guide guide={auth.data.setupGuide} />
-                <Divider label="Credentials" />
+                <Divider label={t("connectionDialog.credentials")} />
               </>
             )}
             {fields.map((f, i) => (
@@ -414,7 +419,7 @@ export function ConnectionDialog({
                   <span className="font-medium">{f.label}</span>
                   {f.required && (
                     <span className="text-[10px] text-rose-300/70">
-                      required
+                      {t("connectionDialog.required")}
                     </span>
                   )}
                 </label>
@@ -444,11 +449,10 @@ export function ConnectionDialog({
               <Input
                 value={account}
                 onChange={(e) => setAccount(e.target.value)}
-                placeholder="Name this connection (optional)"
+                placeholder={t("connectionDialog.nameThis")}
               />
               <p className="text-[11px] leading-snug text-muted-foreground/70">
-                A label to tell this apart from other connections, e.g. "work"
-                or "test".
+                {t("connectionDialog.nameHelp")}
               </p>
             </div>
             <Button
@@ -456,7 +460,9 @@ export function ConnectionDialog({
               disabled={missingRequired || create.isPending}
               onClick={connectApiKey}
             >
-              {create.isPending ? "connecting…" : "Connect"}
+              {create.isPending
+                ? t("connectionDialog.connecting")
+                : t("connectionDialog.connect")}
             </Button>
           </div>
         )}

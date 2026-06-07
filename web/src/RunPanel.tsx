@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -72,6 +73,7 @@ export function RunPanel({
     },
   ) => void;
 }) {
+  const { t, i18n } = useTranslation();
   const qc = useQueryClient();
   const { requireAuth } = useAuth();
   const runsQuery = useRuns(workflowId);
@@ -139,7 +141,7 @@ export function RunPanel({
 
   const titleOf = (nodeId: string) =>
     nodeId === "trigger"
-      ? "Trigger"
+      ? t("trigger.title")
       : (funcs.find((x) => x.id === nodeId)?.title ?? nodeId);
 
   const providerForNode = (nodeId: string): string | undefined => {
@@ -210,7 +212,7 @@ export function RunPanel({
       try {
         parsed = JSON.parse(input || "{}");
       } catch {
-        setError("Invalid JSON input");
+        setError(t("run.invalidJson"));
         return;
       }
     }
@@ -283,7 +285,7 @@ export function RunPanel({
           disabled={running || funcs.length === 0}
           className="h-7 rounded-lg px-3"
         >
-          {running ? "running…" : "▶ Run"}
+          {running ? t("run.running") : t("run.run")}
         </Button>
 
         {canResume && (
@@ -293,26 +295,26 @@ export function RunPanel({
             onClick={resume}
             disabled={running}
             className="h-7 rounded-lg px-3"
-            title="Re-run from the failed step, reusing earlier outputs"
+            title={t("run.resumeTitle")}
           >
-            ⟲ Resume
+            {t("run.resume")}
           </Button>
         )}
 
         <div className="flex rounded-lg border border-border/50 bg-muted/50 p-0.5 text-xs">
-          {(["input", "state", "runs", "code"] as const).map((t) => (
+          {(["input", "state", "runs", "code"] as const).map((tabKey) => (
             <button
-              key={t}
-              onClick={() => setTab(t)}
+              key={tabKey}
+              onClick={() => setTab(tabKey)}
               className={cn(
                 "flex items-center gap-1 rounded-md px-2.5 py-1 capitalize transition-colors",
-                tab === t
+                tab === tabKey
                   ? "bg-background text-foreground"
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
-              {t}
-              {t === "input" && syncing && (
+              {t(`run.tab.${tabKey}`)}
+              {tabKey === "input" && syncing && (
                 <RefreshCw className="h-2.5 w-2.5 animate-spin text-amber-300" />
               )}
             </button>
@@ -324,8 +326,10 @@ export function RunPanel({
         )}
         {!error && records.length > 0 && (
           <span className="ml-auto text-[11px] text-muted-foreground">
-            {records.filter((r) => r.status === "done").length}/{records.length}{" "}
-            done
+            {t("run.doneCount", {
+              done: records.filter((r) => r.status === "done").length,
+              total: records.length,
+            })}
           </span>
         )}
       </div>
@@ -337,7 +341,7 @@ export function RunPanel({
               {syncing && (
                 <span className="flex items-center gap-1 text-amber-300">
                   <RefreshCw className="h-3 w-3 animate-spin" />
-                  updating form…
+                  {t("run.updatingForm")}
                 </span>
               )}
             </div>
@@ -346,7 +350,7 @@ export function RunPanel({
                 <button
                   onClick={regenerate}
                   disabled={regenerating || syncing}
-                  title="Generate an input form from the trigger fields"
+                  title={t("run.makeFormTitle")}
                   className="flex items-center gap-1 rounded-md border border-border/50 px-1.5 py-0.5 text-[10px] text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
                 >
                   <RefreshCw
@@ -355,7 +359,7 @@ export function RunPanel({
                       (regenerating || syncing) && "animate-spin",
                     )}
                   />
-                  {inputForm ? "form" : "make form"}
+                  {inputForm ? t("run.formLabel") : t("run.makeForm")}
                 </button>
               )}
               {useForm && (
@@ -401,7 +405,7 @@ export function RunPanel({
                       </span>
                       {f.required && (
                         <span className="text-[10px] text-rose-300/70">
-                          required
+                          {t("run.required")}
                         </span>
                       )}
                     </label>
@@ -419,7 +423,9 @@ export function RunPanel({
                         onChange={(e) => setField(f.name, e.target.value)}
                         className="h-8 w-full rounded-lg border border-border/50 bg-background-subtle px-2 text-xs outline-none transition-colors focus:border-foreground/20"
                       >
-                        <option value="">{f.placeholder ?? "Select…"}</option>
+                        <option value="">
+                          {f.placeholder ?? t("run.select")}
+                        </option>
                         {f.options?.map((o) => (
                           <option key={o.value} value={o.value}>
                             {o.label}
@@ -482,11 +488,11 @@ export function RunPanel({
         <div className="min-h-0 flex-1 overflow-auto px-3 pb-3">
           {!workflowId ? (
             <div className="flex h-full items-center justify-center px-6 text-center text-xs text-muted-foreground">
-              Save the workflow to keep a history of its runs.
+              {t("run.saveForHistory")}
             </div>
           ) : (runsQuery.data?.length ?? 0) === 0 ? (
             <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
-              No runs yet.
+              {t("run.noRuns")}
             </div>
           ) : (
             <div className="space-y-1.5">
@@ -506,14 +512,14 @@ export function RunPanel({
                     {r.trigger}
                   </span>
                   <span className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground">
-                    {new Date(r.startedAt).toLocaleString()}
+                    {new Date(r.startedAt).toLocaleString(i18n.language)}
                   </span>
                   <span className="shrink-0 text-[10px] text-muted-foreground/60">
-                    {r.stepCount} step{r.stepCount === 1 ? "" : "s"}
+                    {t("run.steps", { count: r.stepCount })}
                   </span>
                   {loadingRun === r.id && (
                     <span className="shrink-0 text-[10px] text-muted-foreground">
-                      loading…
+                      {t("common.loading")}
                     </span>
                   )}
                 </button>
@@ -525,7 +531,7 @@ export function RunPanel({
         <div className="flex min-h-0 flex-1 flex-col px-3 pb-3">
           {!selected ? (
             <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
-              Select a step to see its generated code.
+              {t("run.selectStepCode")}
             </div>
           ) : (
             <>
@@ -542,7 +548,7 @@ export function RunPanel({
                   }
                   className="ml-auto rounded-md border border-border/50 px-1.5 py-0.5 text-[10px] text-muted-foreground transition-colors hover:text-foreground"
                 >
-                  copy
+                  {t("run.copy")}
                 </button>
               </div>
               <div className="min-h-0 flex-1">
@@ -561,7 +567,7 @@ export function RunPanel({
         <div className="min-h-0 flex-1 overflow-auto px-3 pb-3">
           {records.length === 0 ? (
             <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
-              Run the workflow to see each step's state here.
+              {t("run.emptyState")}
             </div>
           ) : (
             <div className="space-y-2">
@@ -584,7 +590,7 @@ export function RunPanel({
                         {titleOf(r.nodeId)}
                       </span>
                       <span className="font-mono text-[10px] text-muted-foreground/60">
-                        {r.status}
+                        {t(`status.${r.status}`, { defaultValue: r.status })}
                       </span>
                       {provider && (
                         <button
@@ -604,7 +610,7 @@ export function RunPanel({
                           }}
                           className="ml-auto rounded-md bg-amber-500/20 px-2 py-0.5 text-[11px] text-amber-200 hover:bg-amber-500/30"
                         >
-                          🔧 fix with AI
+                          {t("run.fixWithAi")}
                         </button>
                       )}
                     </div>
@@ -613,7 +619,7 @@ export function RunPanel({
                       <div className="mt-2 space-y-1.5">
                         <div>
                           <div className="text-[10px] text-muted-foreground/60">
-                            input
+                            {t("node.inputLabel")}
                           </div>
                           <pre className="mt-0.5 overflow-auto rounded-lg bg-muted/40 p-2 font-mono text-[11px] leading-relaxed text-foreground/85">
                             {pretty(r.resolvedInput ?? {})}
@@ -621,7 +627,9 @@ export function RunPanel({
                         </div>
                         {r.error ? (
                           <div>
-                            <div className="text-[10px] text-rose-300/80">error</div>
+                            <div className="text-[10px] text-rose-300/80">
+                              {t("node.errorLabel")}
+                            </div>
                             <pre className="mt-0.5 overflow-auto rounded-lg border border-rose-500/30 bg-rose-500/5 p-2 font-mono text-[11px] leading-relaxed text-rose-200">
                               {r.error}
                             </pre>
@@ -630,7 +638,7 @@ export function RunPanel({
                           r.output !== undefined && (
                             <div>
                               <div className="text-[10px] text-muted-foreground/60">
-                                output
+                                {t("node.outputLabel")}
                               </div>
                               <pre className="mt-0.5 overflow-auto rounded-lg bg-muted/40 p-2 font-mono text-[11px] leading-relaxed text-emerald-200/85">
                                 {pretty(r.output)}

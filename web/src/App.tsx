@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -22,6 +23,7 @@ import { NodePanel } from "./NodePanel";
 import { RightPanel, type RightTab } from "./RightPanel";
 import { WorkflowsPanel } from "./WorkflowsPanel";
 import { SpaceSwitcher } from "./SpaceSwitcher";
+import { LanguageSwitcher } from "./LanguageSwitcher";
 import { ConnectionsPanel } from "./ConnectionsPanel";
 import { ChatHistory } from "./ChatHistory";
 import { RunPanel } from "./RunPanel";
@@ -186,6 +188,7 @@ export function App({
     [bottomHeight],
   );
 
+  const { t, i18n } = useTranslation();
   const saveMutation = useSaveWorkflow();
   const { user, requireAuth, signOut } = useAuth();
   const { data: connections = NO_CONNECTIONS } = useConnections();
@@ -523,14 +526,19 @@ export function App({
         <header className="flex items-center gap-3 rounded-2xl border border-border/40 bg-muted/40 px-4 py-2">
           {user && <SpaceSwitcher />}
           <Badge variant="secondary" className="ml-auto font-normal">
-            {funcs.length} func
+            {t("header.funcCount", { n: funcs.length })}
           </Badge>
+          <LanguageSwitcher />
           <Button
             size="icon"
             variant="ghost"
             className="h-8 w-8"
-            title={theme === "dark" ? "Switch to light" : "Switch to dark"}
-            onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
+            title={
+              theme === "dark"
+                ? t("header.switchToLight")
+                : t("header.switchToDark")
+            }
+            onClick={() => setTheme((prev) => (prev === "dark" ? "light" : "dark"))}
           >
             {theme === "dark" ? (
               <Sun className="h-4 w-4" />
@@ -547,7 +555,7 @@ export function App({
                 size="icon"
                 variant="ghost"
                 className="h-8 w-8"
-                title="Sign out"
+                title={t("auth.signOut")}
                 onClick={signOut}
               >
                 <LogOut className="h-4 w-4" />
@@ -560,7 +568,7 @@ export function App({
               className="h-8"
               onClick={() => requireAuth()}
             >
-              Sign in
+              {t("auth.signIn")}
             </Button>
           )}
         </header>
@@ -598,24 +606,26 @@ export function App({
                       : "text-muted-foreground hover:text-foreground")
                   }
                 >
-                  {v}
+                  {t(`view.${v}`)}
                 </button>
               ))}
             </div>
             <button
               onClick={() => setTriggerOpen(true)}
-              title="Configure trigger"
+              title={t("header.configureTrigger")}
               className="flex items-center gap-1.5 rounded-lg border border-border/50 bg-muted px-2.5 py-1 text-xs text-foreground/90 transition-colors hover:border-border"
             >
               <Zap className="h-3.5 w-3.5 text-tone-amber-fg" />
-              <span className="capitalize">{trigger.kind}</span>
+              <span>{t(`trigger.kind.${trigger.kind}`)}</span>
             </button>
           </div>
           {missingProviders.length > 0 && (
             <div className="pointer-events-none absolute left-1/2 top-3 z-10 -translate-x-1/2">
               <div className="rounded-full border border-tone-amber/40 bg-tone-amber-surface px-3 py-1 text-xs font-medium text-tone-amber-fg">
-                ⚠ {missingProviders.length} connection
-                {missingProviders.length > 1 ? "s" : ""} needed
+                ⚠{" "}
+                {t("header.connectionsNeeded", {
+                  count: missingProviders.length,
+                })}
               </div>
             </div>
           )}

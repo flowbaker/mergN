@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { createPortal } from "react-dom";
 import {
   Bell,
@@ -15,39 +16,14 @@ import { getSpace } from "./space";
 
 const KINDS: {
   kind: TriggerKind;
-  label: string;
-  desc: string;
   icon: typeof Play;
   soon?: boolean;
 }[] = [
-  { kind: "manual", label: "Manual", desc: "Run by hand from the Run panel.", icon: Play },
-  {
-    kind: "webhook",
-    label: "Webhook",
-    desc: "Run when an HTTP POST hits a URL.",
-    icon: Webhook,
-  },
-  {
-    kind: "schedule",
-    label: "Schedule",
-    desc: "Run on a cron schedule.",
-    icon: Clock,
-    soon: true,
-  },
-  {
-    kind: "poll",
-    label: "Poll",
-    desc: "Check a service periodically for new data.",
-    icon: RefreshCw,
-    soon: true,
-  },
-  {
-    kind: "event",
-    label: "Event",
-    desc: "Run on an event from a connected app.",
-    icon: Bell,
-    soon: true,
-  },
+  { kind: "manual", icon: Play },
+  { kind: "webhook", icon: Webhook },
+  { kind: "schedule", icon: Clock, soon: true },
+  { kind: "poll", icon: RefreshCw, soon: true },
+  { kind: "event", icon: Bell, soon: true },
 ];
 
 function CopyChip({ value }: { value: string }) {
@@ -85,6 +61,7 @@ export function TriggerDialog({
   dirty: boolean;
   onClose: () => void;
 }) {
+  const { t } = useTranslation();
   const webhookUrl = workflowId
     ? `${window.location.origin}/api/hooks/${getSpace()}/${workflowId}`
     : null;
@@ -99,9 +76,9 @@ export function TriggerDialog({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center gap-2">
-          <span className="text-sm font-semibold">Trigger</span>
+          <span className="text-sm font-semibold">{t("trigger.title")}</span>
           <span className="text-xs text-muted-foreground">
-            how this workflow starts
+            {t("trigger.subtitle")}
           </span>
           <button
             onClick={onClose}
@@ -140,15 +117,15 @@ export function TriggerDialog({
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="flex items-center gap-1.5 text-[13px] font-medium">
-                    {k.label}
+                    {t(`trigger.kind.${k.kind}`)}
                     {k.soon && (
                       <span className="rounded bg-muted px-1 py-0.5 text-[9px] uppercase tracking-wide text-muted-foreground/70">
-                        soon
+                        {t("common.soon")}
                       </span>
                     )}
                   </span>
                   <span className="block truncate text-xs text-muted-foreground">
-                    {k.desc}
+                    {t(`trigger.desc.${k.kind}`)}
                   </span>
                 </span>
                 {active && <Check className="h-4 w-4 shrink-0 text-amber-400" />}
@@ -160,20 +137,19 @@ export function TriggerDialog({
         {trigger.kind === "webhook" && (
           <div className="mt-4 space-y-2 border-t border-border/50 pt-4">
             <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70">
-              Endpoint
+              {t("trigger.endpoint")}
             </div>
             {webhookUrl ? (
               <>
                 <p className="text-xs leading-relaxed text-muted-foreground">
-                  Send a <span className="font-mono text-foreground/80">POST</span>{" "}
-                  here; the JSON body becomes the trigger output.
+                  {t("trigger.webhookInfo")}
                 </p>
                 <CopyChip value={webhookUrl} />
                 <CopyChip value={`curl -X POST ${webhookUrl} -d '{}'`} />
               </>
             ) : (
               <p className="text-xs leading-relaxed text-amber-300/90">
-                Save the workflow first to get its webhook URL.
+                {t("trigger.saveFirst")}
               </p>
             )}
           </div>
@@ -181,7 +157,7 @@ export function TriggerDialog({
 
         {dirty && trigger.kind !== "manual" && (
           <div className="mt-4 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
-            Save the workflow to apply this trigger.
+            {t("trigger.applyHint")}
           </div>
         )}
       </div>

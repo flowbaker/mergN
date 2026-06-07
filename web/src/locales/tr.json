@@ -1,0 +1,216 @@
+{
+  "common": {
+    "save": "Kaydet",
+    "saving": "kaydediliyor…",
+    "delete": "Sil",
+    "loading": "yükleniyor…",
+    "loadingPage": "Yükleniyor…",
+    "pleaseWait": "Lütfen bekleyin…",
+    "soon": "yakında"
+  },
+  "auth": {
+    "welcomeBack": "Tekrar hoş geldin",
+    "getSetUp": "Hadi seni kaydedelim",
+    "signinSubtitle": "Akışlarını kaydetmek ve çalıştırmak için giriş yap.",
+    "signupSubtitle": "Kurmaya devam etmek için bir hesap oluştur.",
+    "name": "İsim",
+    "email": "E-posta",
+    "password": "Parola",
+    "signIn": "Giriş yap",
+    "signOut": "Çıkış yap",
+    "createAccount": "Hesap oluştur",
+    "failed": "Kimlik doğrulama başarısız",
+    "toSignup": "Hesabın yok mu? Kayıt ol",
+    "toSignin": "Zaten hesabın var mı? Giriş yap"
+  },
+  "header": {
+    "switchToLight": "Açık temaya geç",
+    "switchToDark": "Koyu temaya geç",
+    "funcCount": "{{n}} fonksiyon",
+    "configureTrigger": "Tetikleyiciyi ayarla",
+    "connectionsNeeded_one": "{{count}} bağlantı gerekli",
+    "connectionsNeeded_other": "{{count}} bağlantı gerekli"
+  },
+  "view": {
+    "story": "hikaye",
+    "pipeline": "akış",
+    "graph": "grafik"
+  },
+  "panel": {
+    "chat": "Sohbet",
+    "history": "Geçmiş",
+    "node": "Düğüm"
+  },
+  "chat": {
+    "tokens": "{{n}} token",
+    "newChat": "Yeni sohbet",
+    "emptyTitle": "Akışı düz metinle oluştur",
+    "emptySubtitle": "Ne olması gerektiğini anlat. Tetikleyiciyi ve adımları senin için bağlarım.",
+    "placeholder": "Builder'a yaz…",
+    "thinking": "Düşünüyor…",
+    "writing": "Yazıyor…",
+    "working": "Çalışıyor…",
+    "designingWorkflow": "Akış tasarlanıyor",
+    "workflowReady": "Akış hazır",
+    "stepsProgress": "{{total}} adımdan {{done}} tanesi",
+    "thinkingLabel": "Düşünüyor",
+    "verb": {
+      "design_workflow": "Akış tasarlanıyor",
+      "author_func": "Adım yazılıyor",
+      "update_func": "Adım güncelleniyor",
+      "delete_func": "Adım kaldırılıyor",
+      "wire": "Adımlar bağlanıyor",
+      "unwire": "Bağlantı kesiliyor",
+      "create_provider": "Sağlayıcı oluşturuluyor",
+      "search_providers": "Sağlayıcılar aranıyor",
+      "repair_provider": "Sağlayıcı onarılıyor",
+      "list_connections": "Bağlantılar kontrol ediliyor",
+      "request_connection": "Bağlantı kurulumu açılıyor"
+    },
+    "example": {
+      "stripeSlack": "Bir Stripe ödemesi başarılı olunca Slack'e makbuz gönder",
+      "digest": "Yeni kayıtları özetle ve bana günlük özet e-postası gönder",
+      "github": "Yeni bir GitHub issue'da Discord'a triyaj notu gönder"
+    }
+  },
+  "history": {
+    "newChat": "Yeni sohbet",
+    "empty": "Henüz konuşma yok."
+  },
+  "connections": {
+    "title": "Bağlantılar",
+    "empty": "Henüz bağlantı yok.",
+    "connected": "bağlı",
+    "connect": "bağlan",
+    "disconnect": "bağlantıyı kes",
+    "needsConnection": "bağlantı gerekli"
+  },
+  "pipeline": {
+    "describe": "Bir pipeline oluşturmak için sohbette bir otomasyon anlat.",
+    "manualApi": "manuel / api"
+  },
+  "story": {
+    "title": "Akışın, düz metinle",
+    "describe": "Sohbette bir otomasyon anlat — burada uçtan uca takip edebileceğin okunabilir adımlar olarak görünür.",
+    "via": "{{provider}} ile",
+    "missing": "eksik"
+  },
+  "workflows": {
+    "untitled": "İsimsiz akış",
+    "saved": "Kayıtlı",
+    "newWorkflow": "Yeni akış",
+    "empty": "Henüz kayıtlı akış yok.",
+    "meta": "{{n}} fonksiyon · {{date}}"
+  },
+  "spaces": {
+    "title": "Alanlar",
+    "newSpace": "Yeni alan",
+    "spaceName": "Alan adı",
+    "workspace": "Çalışma alanı",
+    "signInToStart": "Başlamak için giriş yap",
+    "add": "Ekle"
+  },
+  "status": {
+    "done": "tamam",
+    "failed": "başarısız",
+    "pending": "bekliyor",
+    "running": "çalışıyor"
+  },
+  "run": {
+    "run": "▶ Çalıştır",
+    "running": "çalışıyor…",
+    "resume": "⟲ Devam et",
+    "resumeTitle": "Başarısız adımdan itibaren, önceki çıktıları kullanarak yeniden çalıştır",
+    "doneCount": "{{done}}/{{total}} tamam",
+    "invalidJson": "Geçersiz JSON girdisi",
+    "updatingForm": "form güncelleniyor…",
+    "makeFormTitle": "Tetikleyici alanlarından bir girdi formu oluştur",
+    "formLabel": "form",
+    "makeForm": "form oluştur",
+    "required": "gerekli",
+    "select": "Seç…",
+    "saveForHistory": "Çalıştırma geçmişini tutmak için akışı kaydet.",
+    "noRuns": "Henüz çalıştırma yok.",
+    "selectStepCode": "Üretilen kodu görmek için bir adım seç.",
+    "copy": "kopyala",
+    "emptyState": "Her adımın durumunu burada görmek için akışı çalıştır.",
+    "fixWithAi": "🔧 AI ile düzelt",
+    "steps_one": "{{count}} adım",
+    "steps_other": "{{count}} adım",
+    "tab": {
+      "input": "girdi",
+      "state": "durum",
+      "runs": "çalıştırmalar",
+      "code": "kod"
+    }
+  },
+  "node": {
+    "selectStep": "Detaylarını, ayarlarını ve üretilen kodu görmek için bir adım seç.",
+    "transform": "dönüşüm",
+    "effectful": "yan etkili",
+    "lastRun": "Son çalıştırma",
+    "inputLabel": "girdi",
+    "outputLabel": "çıktı",
+    "errorLabel": "hata",
+    "settings": "Ayarlar",
+    "inputs": "Girdiler",
+    "output": "Çıktı",
+    "connections": "Bağlantılar",
+    "safety": "Güvenlik",
+    "optional": "isteğe bağlı",
+    "none": "yok",
+    "danger": "tehlike",
+    "idempotency": "idempotency"
+  },
+  "connectionDialog": {
+    "notConnected": "bağlı değil",
+    "name": "İsim",
+    "nameThis": "Bu bağlantıya isim ver (isteğe bağlı)",
+    "nameHelp": "Bunu diğer bağlantılardan ayırmak için bir etiket, örn. \"iş\" veya \"test\".",
+    "connectedOn": "{{date}} tarihinde bağlandı",
+    "disconnect": "Bağlantıyı kes",
+    "redirectInfo": "Erişim izni vermek için {{name}} sayfasına yönlendirileceksin.",
+    "redirectInfoScope": "{{scopes}} kapsamıyla erişim izni vermek için {{name}} sayfasına yönlendirileceksin.",
+    "waitingAuth": "yetkilendirme bekleniyor…",
+    "connectWith": "{{name}} ile bağlan",
+    "useDifferentApp": "Farklı bir OAuth uygulaması kullan",
+    "noOAuthApp": "{{name}} için yapılandırılmış bir OAuth uygulaması yok. Bir tane kaydet (yönlendirme URL'si {{url}}), sonra kimlik bilgilerini yapıştır.",
+    "clientId": "Client ID",
+    "clientSecret": "Client secret",
+    "authorizeUrl": "Yetkilendirme URL'si",
+    "tokenUrl": "Token URL'si",
+    "saveConnect": "{{name}} ile kaydet ve bağlan",
+    "credentials": "Kimlik bilgileri",
+    "required": "gerekli",
+    "connect": "Bağlan",
+    "connecting": "bağlanıyor…",
+    "connectionFailed": "bağlantı başarısız"
+  },
+  "trigger": {
+    "title": "Tetikleyici",
+    "subtitle": "bu akış nasıl başlar",
+    "endpoint": "Uç nokta",
+    "webhookInfo": "Buraya bir POST gönder; JSON gövdesi tetikleyici çıktısı olur.",
+    "saveFirst": "Webhook URL'sini almak için önce akışı kaydet.",
+    "applyHint": "Bu tetikleyiciyi uygulamak için akışı kaydet.",
+    "kind": {
+      "manual": "Manuel",
+      "webhook": "Webhook",
+      "schedule": "Zamanlama",
+      "poll": "Yoklama",
+      "event": "Olay"
+    },
+    "desc": {
+      "manual": "Run panelinden elle çalıştır.",
+      "webhook": "Bir HTTP POST bir URL'ye geldiğinde çalış.",
+      "schedule": "Cron zamanlamasıyla çalış.",
+      "poll": "Bir servisi yeni veri için periyodik kontrol et.",
+      "event": "Bağlı bir uygulamadan gelen olayda çalış."
+    }
+  },
+  "language": {
+    "label": "Dil",
+    "en": "English",
+    "tr": "Türkçe"
+  }
+}

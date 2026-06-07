@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useConnections, type ConnectionMeta } from "./queries";
@@ -10,6 +11,7 @@ interface Row {
 }
 
 export function ConnectionsPanel({ missing }: { missing: string[] }) {
+  const { t } = useTranslation();
   const { data: items = [], isLoading } = useConnections();
   const [open, setOpen] = useState<Row | null>(null);
 
@@ -23,7 +25,7 @@ export function ConnectionsPanel({ missing }: { missing: string[] }) {
       <div className="px-2 pt-2">
         <div className="flex items-center gap-2 rounded-lg bg-background-subtle px-2.5 py-1.5">
           <span className="text-xs font-medium text-foreground/80">
-            Connections
+            {t("connections.title")}
           </span>
           <span className="rounded bg-muted/60 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground/70">
             {items.length}
@@ -42,7 +44,7 @@ export function ConnectionsPanel({ missing }: { missing: string[] }) {
           ))}
         {!isLoading && rows.length === 0 && (
           <div className="px-2 py-6 text-center text-xs text-muted-foreground">
-            No connections yet.
+            {t("connections.empty")}
           </div>
         )}
 
@@ -81,7 +83,7 @@ export function ConnectionsPanel({ missing }: { missing: string[] }) {
                   connected ? "text-muted-foreground" : "text-amber-300/80",
                 )}
               >
-                {connected ? "connected" : "connect"}
+                {connected ? t("connections.connected") : t("connections.connect")}
               </span>
             </button>
           );

@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import {
   createRootRoute,
   createRoute,
@@ -22,9 +23,10 @@ function RootLayout() {
 }
 
 function Loader() {
+  const { t } = useTranslation();
   return (
     <div className="flex h-screen w-screen items-center justify-center bg-background text-sm text-muted-foreground">
-      Loading…
+      {t("common.loadingPage")}
     </div>
   );
 }

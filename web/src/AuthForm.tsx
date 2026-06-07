@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { signIn, signUp } from "./auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,6 +7,7 @@ import { Input } from "@/components/ui/input";
 type Mode = "signin" | "signup";
 
 export function AuthForm() {
+  const { t } = useTranslation();
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -22,9 +24,9 @@ export function AuthForm() {
         mode === "signin"
           ? await signIn.email({ email, password })
           : await signUp.email({ email, password, name: name || email });
-      if (res.error) setError(res.error.message || "Authentication failed");
+      if (res.error) setError(res.error.message || t("auth.failed"));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Authentication failed");
+      setError(err instanceof Error ? err.message : t("auth.failed"));
     } finally {
       setBusy(false);
     }
@@ -34,19 +36,19 @@ export function AuthForm() {
     <div className="w-full">
       <div className="mb-5">
         <h1 className="text-xl font-semibold">
-          {mode === "signin" ? "Welcome back" : "Let's get you set up"}
+          {mode === "signin" ? t("auth.welcomeBack") : t("auth.getSetUp")}
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
           {mode === "signin"
-            ? "Sign in to save and run your workflows."
-            : "Create an account to keep building."}
+            ? t("auth.signinSubtitle")
+            : t("auth.signupSubtitle")}
         </p>
       </div>
 
       <form onSubmit={submit} className="flex flex-col gap-3">
         {mode === "signup" && (
           <Input
-            placeholder="Name"
+            placeholder={t("auth.name")}
             value={name}
             onChange={(e) => setName(e.target.value)}
             autoComplete="name"
@@ -55,7 +57,7 @@ export function AuthForm() {
         )}
         <Input
           type="email"
-          placeholder="Email"
+          placeholder={t("auth.email")}
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           autoComplete="email"
@@ -64,7 +66,7 @@ export function AuthForm() {
         />
         <Input
           type="password"
-          placeholder="Password"
+          placeholder={t("auth.password")}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           autoComplete={mode === "signin" ? "current-password" : "new-password"}
@@ -74,10 +76,10 @@ export function AuthForm() {
         {error && <p className="text-sm text-destructive">{error}</p>}
         <Button type="submit" className="h-11 w-full rounded-xl" disabled={busy}>
           {busy
-            ? "Please wait…"
+            ? t("common.pleaseWait")
             : mode === "signin"
-              ? "Sign in"
-              : "Create account"}
+              ? t("auth.signIn")
+              : t("auth.createAccount")}
         </Button>
       </form>
 
@@ -89,9 +91,7 @@ export function AuthForm() {
         }}
         className="mt-4 w-full text-center text-sm text-muted-foreground transition-colors hover:text-foreground"
       >
-        {mode === "signin"
-          ? "Don't have an account? Sign up"
-          : "Already have an account? Sign in"}
+        {mode === "signin" ? t("auth.toSignup") : t("auth.toSignin")}
       </button>
     </div>
   );
