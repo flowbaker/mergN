@@ -23,6 +23,11 @@ import { randomUUID } from "node:crypto";
 import { authorFunc } from "../agent/func-author";
 import { createWorkflowStore } from "./store";
 import { createRunStore, type RunDoc } from "./runs";
+import {
+  createMemoryRateLimiter,
+  type RateLimitResult,
+  type RateLimitRule,
+} from "./ratelimit";
 import { runWorkflow } from "./run";
 import { createRegistry, publicAuth } from "../providers/registry";
 import { assertSpace } from "../store/docstore";
@@ -170,6 +175,10 @@ const workflows = createWorkflowStore(store);
 const runs = createRunStore(store);
 const membership = createMembership(store);
 const chats = createChatStore(store);
+
+const rateLimiter = createMemoryRateLimiter();
+const CHAT_USER_LIMIT: RateLimitRule = { limit: 20, windowMs: 60_000 };
+const CHAT_GLOBAL_LIMIT: RateLimitRule = { limit: 120, windowMs: 60_000 };
 
 async function runSavedWorkflow(
   spaceId: string,
@@ -561,6 +570,27 @@ app.post("/api/chat", async (c) => {
     }>();
   if (!/^[A-Za-z0-9_-]+$/.test(conversationId ?? ""))
     return c.json({ error: "bad conversation id" }, 400);
+
+  const userLimit = await rateLimiter.take(
+    `chat:user:${userId}`,
+    CHAT_USER_LIMIT,
+  );
+  const limit: RateLimitResult = userLimit.ok
+    ? await rateLimiter.take("chat:global", CHAT_GLOBAL_LIMIT)
+    : userLimit;
+  if (!limit.ok) {
+    return c.json(
+      {
+        error: "rate_limited",
+        message:
+          "You're sending messages a bit too fast. Please wait a moment and try again.",
+        retryAfterMs: limit.retryAfterMs,
+      },
+      429,
+      { "Retry-After": String(Math.ceil(limit.retryAfterMs / 1000)) },
+    );
+  }
+
   const message = clampUserMessage(rawMessage);
   const previous =
     (await chats.getConversation(spaceId, userId, conversationId))?.messages ??

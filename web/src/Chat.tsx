@@ -5,7 +5,7 @@ import type { TFunction } from "i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { DefaultChatTransport, type UIMessage } from "ai";
 import type { AuthoredFunc, InputForm, Wire, WorkflowOp } from "./types";
-import { Sparkles, ArrowUpRight, Brain, Loader2, SquarePen } from "lucide-react";
+import { Sparkles, ArrowUpRight, Brain, Loader2, SquarePen, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Markdown } from "./Markdown";
 import { spaceHeaders } from "./space";
@@ -13,6 +13,7 @@ import { useAuth } from "./authContext";
 import { useConversation } from "./queries";
 import { ConnectionDialog } from "./ConnectionDialog";
 import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface ToolPart {
@@ -46,6 +47,15 @@ interface DesignItem {
 function fmtElapsed(ms: number): string {
   const s = Math.floor(ms / 1000);
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
+
+function errorMessage(e: Error): string {
+  try {
+    const parsed = JSON.parse(e.message) as { message?: string; error?: string };
+    return parsed.message || parsed.error || e.message;
+  } catch {
+    return e.message;
+  }
 }
 
 function streamLabel(
@@ -331,11 +341,15 @@ function ChatThread({
     [],
   );
 
+  const [chatError, setChatError] = useState<string | null>(
+    "You're sending messages a bit too fast. Please wait a moment and try again.",
+  );
   const { messages, sendMessage, status } = useChat({
     id: conversationId,
     messages: initialMessages,
     transport,
     experimental_throttle: 50,
+    onError: (e) => setChatError(errorMessage(e)),
     onFinish: () => {
       void qc.invalidateQueries({ queryKey: ["conversations"] });
       void qc.invalidateQueries({ queryKey: ["conversation"] });
@@ -498,6 +512,7 @@ function ChatThread({
     const text = input.trim();
     if (!text) return;
     const fire = () => {
+      setChatError(null);
       send(text);
       setInput("");
       if (taRef.current) taRef.current.style.height = "auto";
@@ -573,6 +588,23 @@ function ChatThread({
           )}
         </div>
       </ScrollArea>
+
+      {chatError && (
+        <Alert className="mx-2 mb-1 w-auto rounded-xl border-tone-rose/30 bg-tone-rose/10 py-2 text-tone-rose-fg">
+          <AlertDescription className="flex items-center gap-2 text-tone-rose-fg">
+            <span className="min-w-0 flex-1">{chatError}</span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => setChatError(null)}
+              className="size-5 shrink-0 text-tone-rose-fg/70 hover:bg-tone-rose/20 hover:text-tone-rose-fg"
+            >
+              <X className="size-3.5" />
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
 
       <form onSubmit={submit} className="p-2">
         <div className="flex items-end gap-2 rounded-2xl border border-border/40 bg-background-subtle p-2 transition-colors focus-within:border-foreground/20">
