@@ -29,6 +29,7 @@ import { authorProvider, repairProvider } from "../agent/provider-author";
 import { designWorkflow, planWorkflow } from "../agent/workflow-designer";
 import { authorInputForm } from "../agent/form-author";
 import { createConnections } from "./connections";
+import { resolveEgressHost } from "./egress";
 import { createOAuth } from "./oauth";
 import { auth, getSessionUser } from "./auth";
 import { createMembership } from "./membership";
@@ -570,9 +571,14 @@ app.post("/api/connections", async (c) => {
   if (!body.provider || !hasValue) {
     return c.json({ error: "provider and cred required" }, 400);
   }
+  const spaceId = c.get("spaceId");
+  await registry.ensureSpace(spaceId);
+  const spec = registry.getProvider(spaceId, body.provider);
+  const eg = resolveEgressHost(spec?.sandbox, cred);
+  if (eg.error) return c.json({ error: eg.error }, 400);
   return c.json(
     await connections.createApiKeyConnection(
-      c.get("spaceId"),
+      spaceId,
       body.provider,
       cred,
       body.account,

@@ -19,6 +19,7 @@ export interface Credential {
 
 export interface SandboxPolicy {
   egressDomain?: string;
+  egressFromField?: string;
 }
 
 export type AuthSpec =

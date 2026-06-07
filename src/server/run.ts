@@ -26,6 +26,7 @@ import type { Registry } from "../providers/registry";
 import type { Connections } from "./connections";
 import { RemoteSandboxRuntime } from "./remote-sandbox-runtime";
 import { LocalRuntime } from "./local-runtime";
+import { resolveEgressHost } from "./egress";
 
 export interface RunDeps {
   spaceId: string;
@@ -198,11 +199,13 @@ class CarrierConnectionsResolver implements ConnectionResolver {
         const envValue = process.env[spec.env];
         if (envValue !== undefined) cred = { value: envValue };
       }
+      const eg = resolveEgressHost(spec.sandbox, cred ?? undefined);
+      if (eg.error) throw new Error(`connection ${provider}: ${eg.error}`);
       const carrier: RemoteProviderCarrier = {
         __remoteProvider: true,
         clientSource: spec.clientSource,
         cred: cred ?? undefined,
-        egressDomain: spec.sandbox?.egressDomain,
+        egressDomain: eg.host,
         dependencies: spec.dependencies ?? [],
       };
       out[name] = carrier;

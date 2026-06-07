@@ -17,12 +17,19 @@ export const providerDraftZ = z.object({
     .object({
       egressDomain: z
         .string()
+        .optional()
         .describe(
-          "the single host this provider talks to — the API hostname (e.g. 'api.notion.com') or the database host (e.g. 'ep-xxx.neon.tech').",
+          "A FIXED, publicly-known host known at authoring time — the hostname of a SaaS API that is the same for every user (e.g. 'api.notion.com', 'slack.com'). Leave unset when the host comes from the user's credential; use egressFromField instead.",
+        ),
+      egressFromField: z
+        .string()
+        .optional()
+        .describe(
+          "The NAME of the credential field that holds the host, used when the host is user-specific (databases, caches, self-hosted services, custom base URLs). The runtime parses the host from the user's value at connect time. That value MUST be a bare hostname (e.g. 'db.example.com') or a standard scheme URL / connection string (e.g. 'postgres://user:pass@host:5432/db'). If the service's native credential format is not parseable that way (key-value strings, region-derived endpoints), add a dedicated 'host' field to credential.fields and point this at it. INVARIANT: only use egressFromField when the credential is fully user-supplied; never derive the host from a credential carrying a platform/shared secret.",
         ),
     })
     .describe(
-      "Execution/isolation policy for the sandbox: the single host egress is locked to. This is runtime policy, not user-facing form data.",
+      "Execution/isolation policy: the single host the VM's network egress is locked to. Set EXACTLY ONE of egressDomain (fixed SaaS host) or egressFromField (host comes from the user's credential). Runtime policy, not user-facing form data.",
     ),
   apiDoc: z
     .string()
@@ -99,7 +106,7 @@ const SYSTEM = [
   "For each credential field: mark secrets type:'password' and secret:true (api keys, passwords, connection strings); mark non-secret config as type:'text' (host, user, database) or type:'number' (port). Give a clear label and required:true for values the client cannot work without.",
   "If the service is a database, datastore, cache, or message broker — anything with an official client library (Postgres, MySQL, Redis, MongoDB, NATS, etc.) — write a REAL client using that driver over the connection string. Do NOT substitute the vendor's management REST API. The methods should run actual operations (queries, commands). Example for Postgres: declare credential.fields [{ name:'connectionString', label:'Connection string', type:'password', secret:true, required:true }], then: import pg from 'pg'; export default (cred, fetch) => ({ async query(sql, params) { const c = new pg.Client(cred.connectionString); await c.connect(); try { return (await c.query(sql, params)).rows; } finally { await c.end(); } } }); with dependencies: ['pg'].",
   "authEnv is the env var name holding the primary credential (e.g. NOTION_TOKEN for an API key, DATABASE_URL for a connection string), kept for back-compat; use empty string only if the service truly needs none.",
-  "sandbox.egressDomain is the single host the client talks to — the API hostname, or the database host. The isolated runtime locks all network egress to this single host.",
+  "sandbox locks the VM's network egress to a SINGLE host. Set EXACTLY ONE of: (a) sandbox.egressDomain — a fixed host known now, for a public SaaS API (e.g. 'api.notion.com'); or (b) sandbox.egressFromField — the name of the credential field that holds the host, when the host is user-specific (databases, caches, self-hosted, custom base URLs). For Postgres/MySQL/Redis/Mongo and anything whose host lives in a connection string, use egressFromField pointing at that field (e.g. 'connectionString'); the runtime parses the host from the user's value. The referenced value must be a bare hostname or a standard scheme URL — if it cannot be parsed that way, add a dedicated 'host' field to credential.fields and point egressFromField at it. INVARIANT: never use egressFromField on a credential that carries a platform/shared secret; those must use a fixed egressDomain.",
   "Use your knowledge of the service's real API or wire protocol. Keep methods focused on the few most common actions. Each method must be async.",
   "Also author a setupGuide: the concrete steps a user follows to get the credential for THIS specific service. Name the exact dashboard/console, the exact settings page (give a real deep link in step.link.href when you know it), which value to copy (the API key / token), and which scopes or permissions to enable. Be specific to the service, not generic. Do not set copyRedirectUrl for API-key providers.",
 ].join("\n");
@@ -133,7 +140,7 @@ export async function repairProvider(
     prompt: [
       `Provider id: ${draft.id}`,
       `Service: ${draft.name}`,
-      `egressDomain: ${draft.sandbox?.egressDomain ?? ""}`,
+      `egress: ${draft.sandbox?.egressFromField ? "from credential field '" + draft.sandbox.egressFromField + "'" : (draft.sandbox?.egressDomain ?? "")}`,
       `apiDoc: ${draft.apiDoc}`,
       `Current clientSource:\n${draft.clientSource}`,
       `Error from a real call: ${error}`,
