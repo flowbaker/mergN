@@ -497,8 +497,11 @@ function ChatThread({
   }, [building, onBuilding]);
 
   const totalTokens = useMemo(() => {
+    const seen = new Set<string>();
     let sum = 0;
     for (const m of messages) {
+      if (seen.has(m.id)) continue;
+      seen.add(m.id);
       const u = usageOf(m.metadata);
       if (u?.totalTokens) sum += u.totalTokens;
     }
