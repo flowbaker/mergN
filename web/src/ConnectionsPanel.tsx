@@ -60,8 +60,20 @@ export function ConnectionsPanel({ missing }: { missing: string[] }) {
                   connected ? "bg-emerald-500" : "bg-amber-500",
                 )}
               />
-              <span className="min-w-0 flex-1 truncate font-mono text-xs font-medium">
-                {r.provider}
+              <span className="flex min-w-0 flex-1 flex-col">
+                <span
+                  className={cn(
+                    "truncate text-xs font-medium",
+                    !r.connection?.account && "font-mono",
+                  )}
+                >
+                  {r.connection?.account ?? r.provider}
+                </span>
+                {r.connection?.account && (
+                  <span className="truncate font-mono text-[11px] text-muted-foreground">
+                    {r.provider}
+                  </span>
+                )}
               </span>
               <span
                 className={cn(

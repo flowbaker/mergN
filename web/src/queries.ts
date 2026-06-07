@@ -234,6 +234,19 @@ export function useCreateConnection() {
   });
 }
 
+export function useUpdateConnection() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { id: string; account?: string }) =>
+      json<ConnectionMeta>(`/api/connections/${input.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ account: input.account }),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["connections"] }),
+  });
+}
+
 export function useDeleteConnection() {
   const qc = useQueryClient();
   return useMutation({

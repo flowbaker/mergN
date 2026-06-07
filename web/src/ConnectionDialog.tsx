@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import {
   useCreateConnection,
   useDeleteConnection,
+  useUpdateConnection,
   useProviderAuth,
   useOAuthStatus,
   useSaveOAuthApp,
@@ -111,10 +112,13 @@ export function ConnectionDialog({
   const deleteApp = useDeleteOAuthApp(provider);
   const create = useCreateConnection();
   const del = useDeleteConnection();
+  const update = useUpdateConnection();
   const qc = useQueryClient();
 
   const [cred, setCred] = useState<Record<string, string>>({});
   const [account, setAccount] = useState("");
+  const [nameDraft, setNameDraft] = useState(connection?.account ?? "");
+  const [savedName, setSavedName] = useState(connection?.account ?? "");
   const [clientId, setClientId] = useState("");
   const [clientSecret, setClientSecret] = useState("");
   const [authUrl, setAuthUrl] = useState("");
@@ -230,11 +234,33 @@ export function ConnectionDialog({
 
         {connection ? (
           <div className="space-y-3 text-sm">
-            {connection.account && (
-              <div className="text-muted-foreground">
-                Account: <span className="text-foreground">{connection.account}</span>
+            <div className="space-y-1">
+              <label className="text-xs font-medium">Name</label>
+              <div className="flex gap-2">
+                <Input
+                  value={nameDraft}
+                  onChange={(e) => setNameDraft(e.target.value)}
+                  placeholder="Name this connection (optional)"
+                />
+                <Button
+                  variant="outline"
+                  disabled={
+                    update.isPending || nameDraft.trim() === savedName.trim()
+                  }
+                  onClick={() =>
+                    update.mutate(
+                      {
+                        id: connection.id,
+                        account: nameDraft.trim() || undefined,
+                      },
+                      { onSuccess: (m) => setSavedName(m.account ?? "") },
+                    )
+                  }
+                >
+                  {update.isPending ? "…" : "Save"}
+                </Button>
               </div>
-            )}
+            </div>
             <div className="text-xs text-muted-foreground">
               Connected {new Date(connection.createdAt).toLocaleDateString()}
             </div>
@@ -397,11 +423,17 @@ export function ConnectionDialog({
                 )}
               </div>
             ))}
-            <Input
-              value={account}
-              onChange={(e) => setAccount(e.target.value)}
-              placeholder="account label (optional)"
-            />
+            <div className="space-y-1">
+              <Input
+                value={account}
+                onChange={(e) => setAccount(e.target.value)}
+                placeholder="Name this connection (optional)"
+              />
+              <p className="text-[11px] leading-snug text-muted-foreground/70">
+                A label to tell this apart from other connections, e.g. "work"
+                or "test".
+              </p>
+            </div>
             <Button
               className="w-full"
               disabled={missingRequired || create.isPending}

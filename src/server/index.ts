@@ -613,6 +613,15 @@ app.post("/api/connections", async (c) => {
   );
 });
 
+app.patch("/api/connections/:id", async (c) => {
+  const body = await c.req.json<{ account?: string }>();
+  return c.json(
+    await connections.updateConnection(c.get("spaceId"), c.req.param("id"), {
+      account: body.account,
+    }),
+  );
+});
+
 app.delete("/api/connections/:id", async (c) => {
   await connections.deleteConnection(c.get("spaceId"), c.req.param("id"));
   return c.json({ ok: true });

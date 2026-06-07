@@ -52,6 +52,11 @@ export interface Connections {
       account?: string;
     },
   ): Promise<ConnectionMeta>;
+  updateConnection(
+    spaceId: string,
+    id: string,
+    patch: { account?: string },
+  ): Promise<ConnectionMeta>;
   deleteConnection(spaceId: string, id: string): Promise<void>;
   getAccessToken(spaceId: string, provider: string): Promise<string | null>;
   getCredential(
@@ -117,6 +122,22 @@ export function createConnections(deps: {
       };
       await store.put(spaceId, COLLECTION, doc.id, doc as unknown as Record<string, unknown>);
       return toMeta(doc);
+    },
+
+    async updateConnection(spaceId, id, patch) {
+      const doc = (await store.get(spaceId, COLLECTION, id)) as unknown as
+        | ConnectionDoc
+        | null;
+      if (!doc) throw new Error("connection not found");
+      const account = patch.account?.trim() || undefined;
+      const next: ConnectionDoc = { ...doc, account };
+      await store.put(
+        spaceId,
+        COLLECTION,
+        id,
+        next as unknown as Record<string, unknown>,
+      );
+      return toMeta(next);
     },
 
     async deleteConnection(spaceId, id) {
