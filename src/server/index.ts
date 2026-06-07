@@ -298,24 +298,37 @@ function makeTools(
   }),
   wire: tool({
     description:
-      "Connect two funcs by feeding the upstream func's output into the downstream func's input. Call after the funcs are authored.",
+      "Connect funcs by feeding an upstream func's output into a downstream func's input. Pass ALL the connections you need as a single batch in one call — never call this repeatedly for the same edit. Call after the funcs are authored.",
     inputSchema: z.object({
-      sourceFunc: z.string().describe("upstream func id (the step data comes from)"),
-      targetFunc: z.string().describe("downstream func id (the step data goes to)"),
-      outputField: z
-        .string()
-        .optional()
-        .describe("output field name of the source func"),
-      inputName: z
-        .string()
-        .optional()
-        .describe("input name of the target func"),
+      wires: z
+        .array(
+          z.object({
+            sourceFunc: z
+              .string()
+              .describe("upstream func id (the step data comes from)"),
+            targetFunc: z
+              .string()
+              .describe("downstream func id (the step data goes to)"),
+            outputField: z
+              .string()
+              .optional()
+              .describe("output field name of the source func"),
+            inputName: z
+              .string()
+              .optional()
+              .describe("input name of the target func"),
+          }),
+        )
+        .min(1)
+        .describe("every connection to make, batched into one call"),
     }),
-    execute: async ({ sourceFunc, targetFunc, outputField, inputName }) => ({
-      from: sourceFunc,
-      to: targetFunc,
-      fromOutput: outputField ?? "",
-      toInput: inputName ?? "",
+    execute: async ({ wires }) => ({
+      wires: wires.map((w) => ({
+        from: w.sourceFunc,
+        to: w.targetFunc,
+        fromOutput: w.outputField ?? "",
+        toInput: w.inputName ?? "",
+      })),
     }),
   }),
   list_connections: tool({

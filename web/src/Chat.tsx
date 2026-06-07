@@ -224,10 +224,20 @@ const MessageItem = memo(function MessageItem({
           if (part.type.startsWith("tool-")) {
             const p = part as ToolPart;
             const o = p.output as
-              | { id?: string; from?: string; to?: string }
+              | {
+                  id?: string;
+                  from?: string;
+                  to?: string;
+                  wires?: { from?: string; to?: string }[];
+                }
               | undefined;
             const label =
-              o?.id ?? (o?.from && o?.to ? `${o.from} → ${o.to}` : "");
+              o?.id ??
+              (Array.isArray(o?.wires)
+                ? o.wires.map((w) => `${w.from} → ${w.to}`).join(", ")
+                : o?.from && o?.to
+                  ? `${o.from} → ${o.to}`
+                  : "");
             const done = p.state === "output-available";
             return (
               <div
@@ -409,8 +419,12 @@ function ChatThread({
             if (isFunc(o)) out.push({ key, kind: "funcs", funcs: [o] });
             break;
           case "tool-wire":
-            if (o.from && o.to)
+            if (Array.isArray(o.wires)) {
+              const ws = (o.wires as Wire[]).filter((w) => w.from && w.to);
+              if (ws.length) out.push({ key, kind: "wires", wires: ws });
+            } else if (o.from && o.to) {
               out.push({ key, kind: "wires", wires: [o as unknown as Wire] });
+            }
             break;
           case "tool-delete_func":
             if (typeof o.id === "string")
