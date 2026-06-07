@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { Check, Copy, ExternalLink } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -125,7 +126,14 @@ export function ConnectionDialog({
   const [tokenUrl, setTokenUrl] = useState("");
   const [oauthBusy, setOauthBusy] = useState(false);
   const [oauthError, setOauthError] = useState<string | null>(null);
+  const [closing, setClosing] = useState(false);
   const listenerRef = useRef<((e: MessageEvent) => void) | null>(null);
+
+  const requestClose = () => setClosing(true);
+  const onOverlayAnimEnd = (e: React.AnimationEvent<HTMLDivElement>) => {
+    if (e.target !== e.currentTarget || !closing) return;
+    onClose();
+  };
 
   useEffect(() => {
     return () => {
@@ -147,7 +155,7 @@ export function ConnectionDialog({
     }
     create.mutate(
       { provider, cred: trimmed, account: account.trim() || undefined },
-      { onSuccess: onClose },
+      { onSuccess: requestClose },
     );
   };
 
@@ -167,7 +175,7 @@ export function ConnectionDialog({
       setOauthBusy(false);
       if (d.ok) {
         qc.invalidateQueries({ queryKey: ["connections"] });
-        onClose();
+        requestClose();
       } else {
         setOauthError(d.detail || "connection failed");
       }
@@ -185,7 +193,7 @@ export function ConnectionDialog({
   };
 
   const disconnect = () => {
-    if (connection) del.mutate(connection.id, { onSuccess: onClose });
+    if (connection) del.mutate(connection.id, { onSuccess: requestClose });
   };
 
   const configured = oauthStatus.data?.configured ?? false;
@@ -205,11 +213,20 @@ export function ConnectionDialog({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-6"
-      onClick={onClose}
+      className={cn(
+        "fixed inset-0 z-50 flex items-center justify-center bg-background/70 p-6 backdrop-blur-xs duration-200",
+        closing ? "animate-out fade-out fill-mode-forwards" : "animate-in fade-in",
+      )}
+      onClick={requestClose}
+      onAnimationEnd={onOverlayAnimEnd}
     >
       <div
-        className="w-full max-w-sm rounded-2xl border bg-card p-5"
+        className={cn(
+          "w-full max-w-sm rounded-2xl border border-border/50 bg-card p-5 duration-200 ease-out",
+          closing
+            ? "animate-out fade-out zoom-out-95 slide-out-to-bottom-2 fill-mode-forwards"
+            : "animate-in fade-in zoom-in-95 slide-in-from-bottom-2",
+        )}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center gap-2">
@@ -225,7 +242,7 @@ export function ConnectionDialog({
             <Badge variant="outline">not connected</Badge>
           )}
           <button
-            onClick={onClose}
+            onClick={requestClose}
             className="ml-auto text-muted-foreground hover:text-foreground"
           >
             ✕
