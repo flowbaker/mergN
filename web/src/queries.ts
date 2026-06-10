@@ -21,6 +21,8 @@ export interface SavedWorkflow {
   nodeConnections?: Record<string, Record<string, string>>;
   trigger?: TriggerConfig;
   inputForm?: InputForm;
+  variables?: Record<string, string>;
+  conversationId?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -35,16 +37,19 @@ export interface SaveInput {
   nodeConnections: Record<string, Record<string, string>>;
   trigger: TriggerConfig;
   inputForm: InputForm | null;
+  variables?: Record<string, string>;
+  conversationId?: string;
 }
 
 export function generateInputForm(
   goal: string,
   fields: string[],
+  fieldHints?: Record<string, string>,
 ): Promise<InputForm> {
   return json<InputForm>("/api/input-form", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ goal, fields }),
+    body: JSON.stringify({ goal, fields, fieldHints }),
   });
 }
 
@@ -89,7 +94,10 @@ export function useSaveWorkflow() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
       }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["workflows"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["workflows"] });
+      qc.invalidateQueries({ queryKey: ["conversations", getSpace()] });
+    },
   });
 }
 
@@ -277,6 +285,7 @@ export interface ConversationMeta {
   id: string;
   title: string;
   updatedAt: string;
+  workflowId?: string;
 }
 
 export function useConversations() {

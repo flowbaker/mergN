@@ -194,6 +194,7 @@ async function runSavedWorkflow(
     wires: unknown[];
     config?: Record<string, Record<string, string>>;
     nodeConnections?: Record<string, Record<string, string>>;
+    variables?: Record<string, string>;
   },
   input: Record<string, unknown>,
   trigger: string,
@@ -201,11 +202,12 @@ async function runSavedWorkflow(
 ): Promise<RunDoc> {
   const startedAt = new Date().toISOString();
   const records: StepRecord[] = [];
+  const merged = { ...(wf.variables ?? {}), ...input };
   await runWorkflow(
     { spaceId, registry, connections },
     wf.funcs as Parameters<typeof runWorkflow>[1],
     wf.wires as Parameters<typeof runWorkflow>[2],
-    input,
+    merged,
     wf.config ?? {},
     wf.nodeConnections ?? {},
     (record) => {
@@ -218,7 +220,7 @@ async function runSavedWorkflow(
     workflowName: wf.name,
     trigger,
     status: records.some((r) => r.status === "failed") ? "failed" : "done",
-    input,
+    input: merged,
     records,
     startedAt,
     finishedAt: new Date().toISOString(),
@@ -754,6 +756,8 @@ app.put("/api/workflows/:id", async (c) => {
     nodeConnections?: Record<string, Record<string, string>>;
     trigger?: TriggerConfig;
     inputForm?: unknown;
+    variables?: Record<string, string>;
+    conversationId?: string;
   }>();
   const wf = await workflows.saveWorkflow(c.get("spaceId"), {
     id,
@@ -765,7 +769,17 @@ app.put("/api/workflows/:id", async (c) => {
     nodeConnections: body.nodeConnections ?? {},
     trigger: body.trigger ?? { kind: "manual" },
     inputForm: body.inputForm,
+    variables: body.variables,
+    conversationId: body.conversationId,
   });
+  if (body.conversationId) {
+    await chats.linkWorkflow(
+      c.get("spaceId"),
+      c.get("userId"),
+      body.conversationId,
+      id,
+    );
+  }
   if (scheduler) {
     try {
       await scheduler.reconcile(c.get("spaceId"), wf);
@@ -906,10 +920,17 @@ app.post("/api/hooks/:spaceId/:workflowId", async (c) => {
 });
 
 app.post("/api/input-form", async (c) => {
-  const body = await c.req.json<{ goal?: string; fields?: string[] }>();
-  const form = await authorInputForm(body.goal ?? "", body.fields ?? [], {
-    spaceId: c.get("spaceId"),
-  });
+  const body = await c.req.json<{
+    goal?: string;
+    fields?: string[];
+    fieldHints?: Record<string, string>;
+  }>();
+  const form = await authorInputForm(
+    body.goal ?? "",
+    body.fields ?? [],
+    body.fieldHints,
+    { spaceId: c.get("spaceId") },
+  );
   return c.json(form);
 });
 

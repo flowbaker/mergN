@@ -181,6 +181,17 @@ async function authorStepBody(
 function extractInputs(src: string): string[] {
   const set = new Set<string>();
   for (const m of src.matchAll(/\binput\.([A-Za-z_$][\w$]*)/g)) set.add(m[1]);
+  for (const m of src.matchAll(/\binput\s*\[\s*["'`]([^"'`]+)["'`]\s*\]/g))
+    set.add(m[1]);
+  for (const m of src.matchAll(
+    /(?:const|let|var)\s*\{([^}]*)\}\s*=\s*input\b/g,
+  )) {
+    for (const part of m[1].split(",")) {
+      const key = part.trim().split(":")[0].split("=")[0].trim();
+      if (key && !key.startsWith("...") && /^[A-Za-z_$][\w$]*$/.test(key))
+        set.add(key);
+    }
+  }
   return [...set];
 }
 
@@ -255,7 +266,13 @@ export async function designWorkflow(
 
   const funcs = [];
   const wires = [];
-  const triggerFields = new Set<string>();
+  const variableFieldSet = new Set<string>();
+  const eventFields =
+    plan.triggerKind === "poll" && pollDraft
+      ? pollDraft.itemFields
+      : plan.triggerKind === "schedule"
+        ? ["timestamp"]
+        : [];
 
   for (const step of plan.steps) {
     const stepLabel = `Writing ${step.title || step.id}`;
@@ -278,9 +295,10 @@ export async function designWorkflow(
           to: step.id,
           toInput: name,
         });
-      } else {
+      } else if (eventFields.includes(name)) {
         wires.push({ from: "trigger", fromOutput: name, to: step.id, toInput: name });
-        triggerFields.add(name);
+      } else {
+        variableFieldSet.add(name);
       }
     }
 
@@ -318,15 +336,17 @@ export async function designWorkflow(
     onProgress?.({ kind: "step", id: step.id, label: stepLabel, status: "done" });
   }
 
+  const variableFields = [...variableFieldSet];
+
   let inputForm = null;
-  if (plan.triggerKind !== "poll") {
+  if (variableFields.length > 0) {
     onProgress?.({
       kind: "form",
       id: "form",
       label: "Building input form",
       status: "active",
     });
-    inputForm = await authorInputForm(goal, [...triggerFields], m);
+    inputForm = await authorInputForm(goal, variableFields, undefined, m);
     onProgress?.({
       kind: "form",
       id: "form",
@@ -365,12 +385,12 @@ export async function designWorkflow(
       },
     };
   }
+  if (eventFields.length) trigger.eventFields = eventFields;
 
   return {
     name: plan.name,
     funcs,
     wires,
-    triggerFields: [...triggerFields],
     trigger,
     inputForm,
   };

@@ -1,11 +1,18 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, Loader2, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import type { AuthoredFunc, InputForm, RunStepData, Wire } from "./types";
+import type { AuthoredFunc, InputForm, RunStepData, TriggerConfig, Wire } from "./types";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { spaceHeaders } from "./space";
 import { useAuth } from "./authContext";
 import { useRuns, fetchRun, generateInputForm } from "./queries";
@@ -34,6 +41,12 @@ function pretty(v: unknown): string {
   }
 }
 
+function SaveDot({ cur, saved }: { cur: string; saved: boolean }) {
+  if (!saved) return <Loader2 className="h-3.5 w-3.5 animate-spin text-rose-400" />;
+  if (cur !== "") return <Check className="h-3.5 w-3.5 text-emerald-400" />;
+  return null;
+}
+
 export function RunPanel({
   funcs,
   wires,
@@ -43,7 +56,13 @@ export function RunPanel({
   workflowName,
   inputForm,
   onInputForm,
-  triggerFields,
+  variableFields,
+  trigger,
+  savedTrigger,
+  onTriggerParam,
+  variables,
+  onVariables,
+  persistedVars,
   syncing,
   selected,
   theme,
@@ -59,7 +78,13 @@ export function RunPanel({
   workflowName: string;
   inputForm: InputForm | null;
   onInputForm: (form: InputForm | null) => void;
-  triggerFields: string[];
+  variableFields: string[];
+  trigger: TriggerConfig;
+  savedTrigger: TriggerConfig;
+  onTriggerParam: (key: string, value: string) => void;
+  variables: Record<string, string>;
+  onVariables: (vars: Record<string, string>) => void;
+  persistedVars: Record<string, string>;
   syncing: boolean;
   selected: AuthoredFunc | null;
   theme: "dark" | "light";
@@ -86,7 +111,10 @@ export function RunPanel({
   const [loadingRun, setLoadingRun] = useState<string | null>(null);
   const [currentRunId, setCurrentRunId] = useState<string | null>(null);
   const [tab, setTab] = useState<"input" | "state" | "runs" | "code">("input");
-  const [formValues, setFormValues] = useState<Record<string, string>>({});
+  const [nodeView, setNodeView] = useState<string>("");
+  const [formValues, setFormValues] = useState<Record<string, string>>(() => ({
+    ...variables,
+  }));
   const [inputMode, setInputMode] = useState<"form" | "json">("form");
   const [regenerating, setRegenerating] = useState(false);
 
@@ -103,8 +131,17 @@ export function RunPanel({
     });
   }, [inputForm]);
 
-  const setField = (name: string, value: string) =>
-    setFormValues((prev) => ({ ...prev, [name]: value }));
+  const persistInput = (fv: Record<string, string>) => {
+    const next = { ...variables };
+    for (const f of inputForm?.fields ?? []) next[f.name] = fv[f.name] ?? "";
+    onVariables(next);
+  };
+
+  const setField = (name: string, value: string) => {
+    const next = { ...formValues, [name]: value };
+    setFormValues(next);
+    persistInput(next);
+  };
 
   const buildFormInput = (): Record<string, unknown> => {
     const obj: Record<string, unknown> = {};
@@ -129,7 +166,13 @@ export function RunPanel({
     setRegenerating(true);
     setError(null);
     try {
-      const form = await generateInputForm(workflowName, triggerFields);
+      const hints: Record<string, string> = {};
+      for (const f of funcs) {
+        for (const p of f.inputs) {
+          if (variableFields.includes(p.name) && f.title) hints[p.name] = f.title;
+        }
+      }
+      const form = await generateInputForm(workflowName, variableFields, hints);
       onInputForm(form);
       setInputMode("form");
     } catch (e) {
@@ -140,6 +183,54 @@ export function RunPanel({
   };
 
   const useForm = !!inputForm && inputForm.fields.length > 0;
+
+
+  const formNames = new Set((inputForm?.fields ?? []).map((f) => f.name));
+  const fieldNamesByNode = new Map<string, Set<string>>();
+  for (const f of funcs) {
+    for (const p of f.inputs) {
+      if (p.role === "config" || !formNames.has(p.name)) continue;
+      if (wires.some((w) => w.to === f.id && w.toInput === p.name)) continue;
+      let set = fieldNamesByNode.get(f.id);
+      if (!set) {
+        set = new Set();
+        fieldNamesByNode.set(f.id, set);
+      }
+      set.add(p.name);
+    }
+  }
+  const nodesWithFields = funcs.filter(
+    (f) => (fieldNamesByNode.get(f.id)?.size ?? 0) > 0,
+  );
+  const titleCounts = new Map<string, number>();
+  for (const f of nodesWithFields) {
+    const base = f.title || f.id;
+    titleCounts.set(base, (titleCounts.get(base) ?? 0) + 1);
+  }
+  const triggerHasSettings =
+    trigger.kind === "poll" && (trigger.poll?.paramNames?.length ?? 0) > 0;
+  const views: { id: string; label: string }[] = [
+    ...(triggerHasSettings
+      ? [{ id: "__trigger", label: t("trigger.title") }]
+      : []),
+    ...nodesWithFields.map((f) => {
+      const base = f.title || f.id;
+      return {
+        id: f.id,
+        label: (titleCounts.get(base) ?? 0) > 1 ? `${base} · ${f.id.slice(0, 4)}` : base,
+      };
+    }),
+  ];
+  const activeNode =
+    nodeView && views.some((v) => v.id === nodeView)
+      ? nodeView
+      : (views[0]?.id ?? "");
+  const visibleFields =
+    activeNode === "__trigger"
+      ? []
+      : (inputForm?.fields ?? []).filter((f) =>
+          fieldNamesByNode.get(activeNode)?.has(f.name),
+        );
 
   const titleOf = (nodeId: string) =>
     nodeId === "trigger"
@@ -341,6 +432,23 @@ export function RunPanel({
       {tab === "input" ? (
         <div className="flex min-h-0 flex-1 flex-col px-3 pb-3">
           <div className="mb-2 flex items-center gap-2">
+            {views.length > 0 && (
+              <Select value={activeNode} onValueChange={setNodeView}>
+                <SelectTrigger
+                  size="sm"
+                  className="h-7 w-auto min-w-[150px] bg-background text-xs"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {views.map((v) => (
+                    <SelectItem key={v.id} value={v.id}>
+                      {v.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
             <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
               {syncing && (
                 <span className="flex items-center gap-1 text-amber-300">
@@ -350,7 +458,7 @@ export function RunPanel({
               )}
             </div>
             <div className="ml-auto flex items-center gap-1.5">
-              {triggerFields.length > 0 && (
+              {variableFields.length > 0 && (
                 <button
                   onClick={regenerate}
                   disabled={regenerating || syncing}
@@ -372,8 +480,25 @@ export function RunPanel({
                     <button
                       key={m}
                       onClick={() => {
-                        if (m === "json" && inputMode === "form")
+                        if (m === "json" && inputMode === "form") {
                           setInput(JSON.stringify(buildFormInput(), null, 2));
+                        } else if (m === "form" && inputMode === "json") {
+                          try {
+                            const parsed = JSON.parse(input || "{}");
+                            if (parsed && typeof parsed === "object") {
+                              setFormValues((prev) => {
+                                const next = { ...prev };
+                                for (const [k, v] of Object.entries(parsed)) {
+                                  next[k] =
+                                    typeof v === "string" ? v : String(v);
+                                }
+                                return next;
+                              });
+                            }
+                          } catch {
+                            void 0;
+                          }
+                        }
                         setInputMode(m);
                       }}
                       className={cn(
@@ -391,15 +516,52 @@ export function RunPanel({
             </div>
           </div>
 
-          {useForm && inputMode === "form" ? (
+          <div className="min-h-0 flex-1 space-y-3 overflow-auto">
+          {activeNode === "__trigger" ? (
+            <div className="space-y-2 rounded-xl border border-border/50 bg-background p-3">
+              <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70">
+                Trigger settings
+              </div>
+              {(trigger.poll?.paramNames ?? []).map((name) => {
+                const cur = String(trigger.poll?.params?.[name] ?? "");
+                const saved =
+                  cur === String(savedTrigger.poll?.params?.[name] ?? "");
+                return (
+                  <div key={name} className="space-y-1">
+                    <label className="flex items-center gap-2 text-xs">
+                      <span className="font-mono text-[11px] text-foreground/90">
+                        {name}
+                      </span>
+                      <span className="text-[10px] uppercase tracking-wide text-rose-400/80">
+                        required
+                      </span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        value={cur}
+                        onChange={(e) => onTriggerParam(name, e.target.value)}
+                        placeholder={name}
+                        className="w-full rounded-lg border border-border/60 bg-background-subtle px-2.5 py-1.5 pr-8 text-[12px] text-foreground/90 outline-none focus:border-border"
+                      />
+                      <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2">
+                        <SaveDot cur={cur} saved={saved} />
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : useForm && inputMode === "form" ? (
             <div
               className={cn(
-                "min-h-0 flex-1 space-y-3 overflow-auto rounded-xl border border-border/50 bg-background p-3 transition-opacity",
+                "space-y-3 rounded-xl border border-border/50 bg-background p-3 transition-opacity",
                 syncing && "pointer-events-none opacity-50",
               )}
             >
-              {inputForm!.fields.map((f) => {
+              {visibleFields.map((f) => {
                 const value = formValues[f.name] ?? f.defaultValue ?? "";
+                const cur = formValues[f.name] ?? "";
+                const saved = cur === (persistedVars[f.name] ?? "");
                 return (
                   <div key={f.name} className="space-y-1">
                     <label className="flex items-center gap-2 text-xs">
@@ -413,19 +575,20 @@ export function RunPanel({
                         </span>
                       )}
                     </label>
+                    <div className="relative">
                     {f.control === "textarea" ? (
                       <textarea
                         value={value}
                         onChange={(e) => setField(f.name, e.target.value)}
                         placeholder={f.placeholder}
                         rows={3}
-                        className="w-full resize-y rounded-lg border border-border/50 bg-background-subtle p-2 text-xs outline-none transition-colors focus:border-foreground/20"
+                        className="w-full resize-y rounded-lg border border-border/50 bg-background-subtle p-2 pr-8 text-xs outline-none transition-colors focus:border-foreground/20"
                       />
                     ) : f.control === "select" ? (
                       <select
                         value={value}
                         onChange={(e) => setField(f.name, e.target.value)}
-                        className="h-8 w-full rounded-lg border border-border/50 bg-background-subtle px-2 text-xs outline-none transition-colors focus:border-foreground/20"
+                        className="h-8 w-full rounded-lg border border-border/50 bg-background-subtle px-2 pr-8 text-xs outline-none transition-colors focus:border-foreground/20"
                       >
                         <option value="">
                           {f.placeholder ?? t("run.select")}
@@ -466,9 +629,15 @@ export function RunPanel({
                               : "text"
                         }
                         placeholder={f.placeholder}
-                        className="h-8 rounded-lg bg-background-subtle text-xs"
+                        className="h-8 w-full rounded-lg bg-background-subtle pr-8 text-xs"
                       />
                     )}
+                    {f.control !== "toggle" && (
+                      <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2">
+                        <SaveDot cur={cur} saved={saved} />
+                      </span>
+                    )}
+                    </div>
                     {f.help && (
                       <p className="text-[11px] leading-snug text-muted-foreground/70">
                         {f.help}
@@ -481,12 +650,29 @@ export function RunPanel({
           ) : (
             <textarea
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={(e) => {
+                const json = e.target.value;
+                setInput(json);
+                try {
+                  const parsed = JSON.parse(json);
+                  if (parsed && typeof parsed === "object") {
+                    const fv = { ...formValues };
+                    for (const [k, v] of Object.entries(parsed)) {
+                      fv[k] = typeof v === "string" ? v : String(v);
+                    }
+                    setFormValues(fv);
+                    persistInput(fv);
+                  }
+                } catch {
+                  void 0;
+                }
+              }}
               spellCheck={false}
               placeholder='{ "email": "ada@x.com", "amount": 2000 }'
-              className="min-h-0 flex-1 resize-none rounded-xl border border-border/50 bg-background p-3 font-mono text-xs outline-none transition-colors focus:border-foreground/20"
+              className="min-h-[220px] w-full resize-none rounded-xl border border-border/50 bg-background p-3 font-mono text-xs outline-none transition-colors focus:border-foreground/20"
             />
           )}
+          </div>
         </div>
       ) : tab === "runs" ? (
         <div className="min-h-0 flex-1 overflow-auto px-3 pb-3">

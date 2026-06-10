@@ -33,6 +33,7 @@ export interface TriggerConfig {
   enabled?: boolean;
   schedule?: ScheduleTriggerConfig;
   poll?: PollTriggerConfig;
+  eventFields?: string[];
 }
 
 export type FormControl =

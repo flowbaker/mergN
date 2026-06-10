@@ -28,6 +28,7 @@ export interface TriggerConfig {
   enabled?: boolean;
   schedule?: ScheduleTriggerConfig;
   poll?: PollTriggerConfig;
+  eventFields?: string[];
 }
 
 export interface SavedWorkflow {
@@ -40,6 +41,8 @@ export interface SavedWorkflow {
   nodeConnections?: Record<string, Record<string, string>>;
   trigger?: TriggerConfig;
   inputForm?: unknown;
+  variables?: Record<string, string>;
+  conversationId?: string;
   createdAt: string;
   updatedAt: string;
 }

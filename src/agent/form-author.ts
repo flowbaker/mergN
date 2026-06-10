@@ -40,15 +40,22 @@ const SYSTEM = [
   "Produce ONE field per given name (reuse the name verbatim), choosing the best control plus a human label, and a placeholder/help where useful.",
   "Controls: text (short string), textarea (long text or a message body), number (amounts, counts, money), toggle (a yes/no boolean), select (a small fixed set of choices — provide options), date.",
   "Prefer number for money/amounts; for an email use text with an email-like placeholder; use select ONLY when there is a clear small set of valid values, otherwise text.",
+  "When a field lists the step that consumes it, base the field's label and help on THAT step's domain/service — not on possibly-stale wording in the goal.",
   "Never invent fields that are not in the list. Keep labels concise.",
 ].join("\n");
 
 export async function authorInputForm(
   goal: string,
   fields: string[],
+  fieldHints?: Record<string, string>,
   meta?: AgentMeta,
 ): Promise<InputForm> {
   if (fields.length === 0) return { fields: [] };
+
+  const hintLines = fields
+    .filter((name) => fieldHints?.[name])
+    .map((name) => `- ${name}: used by step "${fieldHints![name]}"`)
+    .join("\n");
 
   const { output } = await generateText({
     model: google(process.env.GEMINI_MODEL ?? "gemini-2.5-flash"),
@@ -58,7 +65,10 @@ export async function authorInputForm(
     prompt: [
       `Goal: ${goal || "(not given)"}`,
       `Trigger fields: ${fields.join(", ")}`,
-    ].join("\n"),
+      hintLines ? `Consuming steps (label each field for its step's domain):\n${hintLines}` : "",
+    ]
+      .filter(Boolean)
+      .join("\n"),
   });
 
   const known = new Set(fields);

@@ -3,7 +3,6 @@ import type {
   FuncNode,
   Binding,
   Schema,
-  FuncContext,
   ProviderClient,
   StepRecord,
   RunLog,
@@ -155,7 +154,15 @@ function toNode(
       continue;
     }
     const w = wires.find((x) => x.to === f.id && x.toInput === p.name);
-    if (!w) continue;
+    if (!w) {
+      if (p.role !== "config") {
+        bindings[p.name] = {
+          mode: "ref",
+          path: `trigger.output.${p.name}`,
+        };
+      }
+      continue;
+    }
     bindings[p.name] = {
       mode: "ref",
       path: w.fromOutput
