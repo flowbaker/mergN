@@ -17,6 +17,7 @@ const SYSTEM = [
   "- If there is no side effect, set pure=true, requires=[], and kind is usually 'adapter'.",
   "- If it calls an external service, set pure=false, fill requires, and pick a suitable dangerClass and idempotencyMechanism.",
   "- When a provider's connection API is given below, declare a connection with that provider id and call it exactly as documented.",
+  "- For each input you read as a LIST (input.x is iterated/mapped/indexed), declare its type as 'array' so the UI offers a list editor.",
 ].join("\n");
 
 export interface FuncSpec {

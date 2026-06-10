@@ -6,7 +6,13 @@
     "loading": "loading…",
     "loadingPage": "Loading…",
     "pleaseWait": "Please wait…",
-    "soon": "soon"
+    "soon": "soon",
+    "done": "Done"
+  },
+  "array": {
+    "empty": "No items yet.",
+    "add": "Add item",
+    "count": "{{count}} items"
   },
   "auth": {
     "welcomeBack": "Welcome back",

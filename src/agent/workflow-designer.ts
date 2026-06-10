@@ -109,6 +109,7 @@ const PLAN_SYSTEM = [
   "Use triggerKind 'poll' when the goal is to WATCH a service for NEW items and act on each ('when a new Discord message arrives', 'watch a channel for new messages', 'new emails'). Such services CANNOT webhook here. Fill `poll` (provider, a clear intent of what counts as new, intervalValue+intervalUnit). The steps then receive EACH new item as the trigger input — make the steps read that item's fields (e.g. input.content). Do NOT add a step that 'lists' or 'fetches' messages; the poll itself fetches new items.",
   "For each step give: id (snake_case, e.g. create_customer), title, summary, effectful (true if it calls an external service), provider (for effectful steps, e.g. 'stripe','slack'), a DETAILED intent (say exactly what values the step needs and what it returns — e.g. a Slack message needs a channel and the text), outputs (its output field names), and deps (ONLY the inputs that come from an UPSTREAM step's output: input name, fromStep id, fromOutput field).",
   "Inputs NOT listed in deps are taken from the user's trigger input automatically by name. Use consistent field names across steps so they wire up.",
+  "When the user provides a LIST/multiple values (e.g. several channel ids, multiple emails/recipients), do NOT add a separate step to split or parse a delimited string. Instead, let the consuming step read that input DIRECTLY as an array (iterate it with for...of / forEach) — the UI gives the user a proper list editor for array inputs.",
 ].join("\n");
 
 export async function planWorkflow(
@@ -135,6 +136,12 @@ const stepBodyZ = z.object({
     .array(z.string())
     .describe("npm packages this step imports directly; empty array if none.")
     .optional(),
+  arrayInputs: z
+    .array(z.string())
+    .describe(
+      "input field names you read as an ARRAY/list (i.e. input.x is iterated with map/forEach/for-of or indexed). Empty if none.",
+    )
+    .optional(),
   dangerClass: z.enum(["benign", "costly", "catastrophic"]).optional(),
   idempotencyMechanism: z
     .enum(["provider-key", "upsert", "read-before-write", "claim", "none"])
@@ -147,6 +154,8 @@ const BODY_SYSTEM = [
   "Read EVERY value you need from input.<field>. For values that come from the user, use natural field names (amount, email, channel, text). For values that come from an upstream step, use the input names listed as upstream-provided.",
   "Include ALL values the step needs — especially every required parameter of the external call (e.g. a Slack message needs input.channel AND input.text).",
   "Return an object containing EXACTLY the required output fields. You may use top-level `import` for npm packages; list each in `dependencies`.",
+  "If you read any input as a LIST (input.x.map/forEach/for-of or input.x[i]), list those field names in `arrayInputs` so the UI offers a list editor.",
+  "A user-provided list ARRIVES AS A REAL ARRAY — iterate input.x directly with for...of/forEach. Do NOT String.split() it and do NOT expect a comma-separated string.",
 ].join("\n");
 
 async function authorStepBody(
@@ -284,6 +293,7 @@ export async function designWorkflow(
       triggerHint,
     );
     const usedInputs = extractInputs(body.bodySource);
+    const arrayInputs = new Set(body.arrayInputs ?? []);
     const depByInput = new Map(step.deps.map((d) => [d.input, d]));
 
     for (const name of usedInputs) {
@@ -312,7 +322,7 @@ export async function designWorkflow(
       inputs: usedInputs.map((name) => ({
         name,
         role: "input",
-        type: "string",
+        type: arrayInputs.has(name) ? "array" : "string",
         required: true,
       })),
       outputSchema: {

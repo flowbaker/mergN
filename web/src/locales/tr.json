@@ -6,7 +6,13 @@
     "loading": "yükleniyor…",
     "loadingPage": "Yükleniyor…",
     "pleaseWait": "Lütfen bekleyin…",
-    "soon": "yakında"
+    "soon": "yakında",
+    "done": "Tamam"
+  },
+  "array": {
+    "empty": "Henüz öğe yok.",
+    "add": "Öğe ekle",
+    "count": "{{count}} öğe"
   },
   "auth": {
     "welcomeBack": "Tekrar hoş geldin",

@@ -10,6 +10,7 @@ const controlZ = z.enum([
   "toggle",
   "select",
   "date",
+  "array",
 ]);
 
 const fieldZ = z.object({

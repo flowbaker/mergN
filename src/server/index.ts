@@ -194,7 +194,7 @@ async function runSavedWorkflow(
     wires: unknown[];
     config?: Record<string, Record<string, string>>;
     nodeConnections?: Record<string, Record<string, string>>;
-    variables?: Record<string, string>;
+    variables?: Record<string, unknown>;
   },
   input: Record<string, unknown>,
   trigger: string,
@@ -756,7 +756,7 @@ app.put("/api/workflows/:id", async (c) => {
     nodeConnections?: Record<string, Record<string, string>>;
     trigger?: TriggerConfig;
     inputForm?: unknown;
-    variables?: Record<string, string>;
+    variables?: Record<string, unknown>;
     conversationId?: string;
   }>();
   const wf = await workflows.saveWorkflow(c.get("spaceId"), {

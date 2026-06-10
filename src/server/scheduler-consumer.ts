@@ -14,7 +14,7 @@ export type RunSavedWorkflow = (
     wires: unknown[];
     config?: Record<string, Record<string, string>>;
     nodeConnections?: Record<string, Record<string, string>>;
-    variables?: Record<string, string>;
+    variables?: Record<string, unknown>;
   },
   input: Record<string, unknown>,
   trigger: string,

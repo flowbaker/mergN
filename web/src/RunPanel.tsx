@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
-import { RefreshCw, Loader2, Check } from "lucide-react";
+import { RefreshCw, Loader2, Check, Pencil } from "lucide-react";
+import { ArrayEditorDialog } from "./ArrayEditorDialog";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -82,9 +83,9 @@ export function RunPanel({
   trigger: TriggerConfig;
   savedTrigger: TriggerConfig;
   onTriggerParam: (key: string, value: string) => void;
-  variables: Record<string, string>;
-  onVariables: (vars: Record<string, string>) => void;
-  persistedVars: Record<string, string>;
+  variables: Record<string, unknown>;
+  onVariables: (vars: Record<string, unknown>) => void;
+  persistedVars: Record<string, unknown>;
   syncing: boolean;
   selected: AuthoredFunc | null;
   theme: "dark" | "light";
@@ -112,11 +113,12 @@ export function RunPanel({
   const [currentRunId, setCurrentRunId] = useState<string | null>(null);
   const [tab, setTab] = useState<"input" | "state" | "runs" | "code">("input");
   const [nodeView, setNodeView] = useState<string>("");
-  const [formValues, setFormValues] = useState<Record<string, string>>(() => ({
+  const [formValues, setFormValues] = useState<Record<string, unknown>>(() => ({
     ...variables,
   }));
   const [inputMode, setInputMode] = useState<"form" | "json">("form");
   const [regenerating, setRegenerating] = useState(false);
+  const [editingArray, setEditingArray] = useState<string | null>(null);
 
   useEffect(() => {
     if (!inputForm) return;
@@ -125,19 +127,22 @@ export function RunPanel({
       for (const f of inputForm.fields) {
         if (next[f.name] === undefined)
           next[f.name] =
-            f.defaultValue ?? (f.control === "toggle" ? "false" : "");
+            f.control === "array"
+              ? []
+              : (f.defaultValue ?? (f.control === "toggle" ? "false" : ""));
       }
       return next;
     });
   }, [inputForm]);
 
-  const persistInput = (fv: Record<string, string>) => {
+  const persistInput = (fv: Record<string, unknown>) => {
     const next = { ...variables };
-    for (const f of inputForm?.fields ?? []) next[f.name] = fv[f.name] ?? "";
+    for (const f of inputForm?.fields ?? [])
+      next[f.name] = fv[f.name] ?? (f.control === "array" ? [] : "");
     onVariables(next);
   };
 
-  const setField = (name: string, value: string) => {
+  const setField = (name: string, value: unknown) => {
     const next = { ...formValues, [name]: value };
     setFormValues(next);
     persistInput(next);
@@ -147,6 +152,12 @@ export function RunPanel({
     const obj: Record<string, unknown> = {};
     if (!inputForm) return obj;
     for (const f of inputForm.fields) {
+      if (f.control === "array") {
+        obj[f.name] = Array.isArray(formValues[f.name])
+          ? formValues[f.name]
+          : [];
+        continue;
+      }
       const v = formValues[f.name] ?? f.defaultValue ?? "";
       if (f.control === "toggle") {
         obj[f.name] = v === "true";
@@ -489,8 +500,7 @@ export function RunPanel({
                               setFormValues((prev) => {
                                 const next = { ...prev };
                                 for (const [k, v] of Object.entries(parsed)) {
-                                  next[k] =
-                                    typeof v === "string" ? v : String(v);
+                                  next[k] = v;
                                 }
                                 return next;
                               });
@@ -559,9 +569,60 @@ export function RunPanel({
               )}
             >
               {visibleFields.map((f) => {
-                const value = formValues[f.name] ?? f.defaultValue ?? "";
-                const cur = formValues[f.name] ?? "";
-                const saved = cur === (persistedVars[f.name] ?? "");
+                if (f.control === "array") {
+                  const arr = Array.isArray(formValues[f.name])
+                    ? (formValues[f.name] as string[])
+                    : [];
+                  const saved =
+                    JSON.stringify(arr) ===
+                    JSON.stringify(
+                      Array.isArray(persistedVars[f.name])
+                        ? persistedVars[f.name]
+                        : [],
+                    );
+                  return (
+                    <div key={f.name} className="space-y-1">
+                      <label className="flex items-center gap-2 text-xs">
+                        <span className="font-medium">{f.label}</span>
+                        <span className="font-mono text-[10px] text-muted-foreground/50">
+                          {f.name}
+                        </span>
+                        {f.required && (
+                          <span className="text-[10px] text-rose-300/70">
+                            {t("run.required")}
+                          </span>
+                        )}
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setEditingArray(f.name)}
+                        className="flex w-full items-center gap-2 rounded-lg border border-border/50 bg-background-subtle px-2.5 py-1.5 text-left text-xs transition-colors hover:border-border"
+                      >
+                        <span className="min-w-0 flex-1 truncate">
+                          {arr.length ? (
+                            t("array.count", { count: arr.length })
+                          ) : (
+                            <span className="text-muted-foreground/50">
+                              {t("array.empty")}
+                            </span>
+                          )}
+                        </span>
+                        <SaveDot cur={arr.length ? "x" : ""} saved={saved} />
+                        <Pencil className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                      </button>
+                      {f.help && (
+                        <p className="text-[11px] leading-snug text-muted-foreground/70">
+                          {f.help}
+                        </p>
+                      )}
+                    </div>
+                  );
+                }
+                const value = String(
+                  formValues[f.name] ?? f.defaultValue ?? "",
+                );
+                const cur = String(formValues[f.name] ?? "");
+                const saved = cur === String(persistedVars[f.name] ?? "");
                 return (
                   <div key={f.name} className="space-y-1">
                     <label className="flex items-center gap-2 text-xs">
@@ -658,7 +719,7 @@ export function RunPanel({
                   if (parsed && typeof parsed === "object") {
                     const fv = { ...formValues };
                     for (const [k, v] of Object.entries(parsed)) {
-                      fv[k] = typeof v === "string" ? v : String(v);
+                      fv[k] = v;
                     }
                     setFormValues(fv);
                     persistInput(fv);
@@ -845,6 +906,23 @@ export function RunPanel({
           )}
         </div>
       )}
+      {editingArray &&
+        (() => {
+          const fld = (inputForm?.fields ?? []).find(
+            (x) => x.name === editingArray,
+          );
+          const arr = Array.isArray(formValues[editingArray])
+            ? (formValues[editingArray] as string[])
+            : [];
+          return (
+            <ArrayEditorDialog
+              title={fld?.label ?? editingArray}
+              items={arr}
+              onChange={(items) => setField(editingArray, items)}
+              onClose={() => setEditingArray(null)}
+            />
+          );
+        })()}
     </div>
   );
 }

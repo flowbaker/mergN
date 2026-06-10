@@ -21,7 +21,7 @@ export interface SavedWorkflow {
   nodeConnections?: Record<string, Record<string, string>>;
   trigger?: TriggerConfig;
   inputForm?: InputForm;
-  variables?: Record<string, string>;
+  variables?: Record<string, unknown>;
   conversationId?: string;
   createdAt: string;
   updatedAt: string;
@@ -37,7 +37,7 @@ export interface SaveInput {
   nodeConnections: Record<string, Record<string, string>>;
   trigger: TriggerConfig;
   inputForm: InputForm | null;
-  variables?: Record<string, string>;
+  variables?: Record<string, unknown>;
   conversationId?: string;
 }
 

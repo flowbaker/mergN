@@ -42,7 +42,8 @@ export type FormControl =
   | "number"
   | "toggle"
   | "select"
-  | "date";
+  | "date"
+  | "array";
 
 export interface FormField {
   name: string;

@@ -170,8 +170,8 @@ export function App({
   const [nodeConnections, setNodeConnections] = useState<
     Record<string, Record<string, string>>
   >({});
-  const [variables, setVariables] = useState<Record<string, string>>({});
-  const [persistedVars, setPersistedVars] = useState<Record<string, string>>(
+  const [variables, setVariables] = useState<Record<string, unknown>>({});
+  const [persistedVars, setPersistedVars] = useState<Record<string, unknown>>(
     {},
   );
   const [activeTab, setActiveTab] = useState<RightTab>("chat");
@@ -311,6 +311,24 @@ export function App({
     }, 500);
     return () => clearTimeout(t);
   }, [variableFields, inputForm, name, funcs]);
+
+  useEffect(() => {
+    if (!inputForm) return;
+    const arrayNames = new Set<string>();
+    for (const f of funcs)
+      for (const p of f.inputs)
+        if (p.type === "array") arrayNames.add(p.name);
+    const needsPatch = inputForm.fields.some(
+      (fld) => arrayNames.has(fld.name) && fld.control !== "array",
+    );
+    if (!needsPatch) return;
+    setInputForm({
+      ...inputForm,
+      fields: inputForm.fields.map((fld) =>
+        arrayNames.has(fld.name) ? { ...fld, control: "array" as const } : fld,
+      ),
+    });
+  }, [inputForm, funcs]);
 
   const onSelectNode = useCallback((id: string) => {
     if (id === "trigger") {
@@ -613,7 +631,7 @@ export function App({
     void save();
   };
 
-  const applyVariables = useCallback((vars: Record<string, string>) => {
+  const applyVariables = useCallback((vars: Record<string, unknown>) => {
     setVariables(vars);
     setAutoSave(true);
   }, []);

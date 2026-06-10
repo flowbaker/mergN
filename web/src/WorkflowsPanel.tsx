@@ -35,7 +35,8 @@ export function WorkflowsPanel({
           onChange={(e) => onName(e.target.value)}
           placeholder={t("workflows.untitled")}
           spellCheck={false}
-          className="min-w-0 flex-1 bg-transparent text-sm font-medium text-foreground outline-none placeholder:text-muted-foreground/50"
+          title={name}
+          className="min-w-0 flex-1 truncate bg-transparent text-sm font-medium text-foreground outline-none placeholder:text-muted-foreground/50"
         />
         <button
           onClick={onSave}
