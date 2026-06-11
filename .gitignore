@@ -6,3 +6,4 @@ dist/
 coverage/
 data/
 .DS_Store
+deploy/flowbaker/

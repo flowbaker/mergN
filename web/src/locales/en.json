@@ -6,7 +6,18 @@
     "loading": "loading…",
     "loadingPage": "Loading…",
     "pleaseWait": "Please wait…",
-    "soon": "soon"
+    "soon": "soon",
+    "done": "Done"
+  },
+  "array": {
+    "empty": "No items yet.",
+    "add": "Add item",
+    "count": "{{count}} items"
+  },
+  "llm": {
+    "selectModel": "Select model",
+    "pickToStart": "Pick an AI model to start",
+    "keyUnchanged": "•••••• (unchanged)"
   },
   "auth": {
     "welcomeBack": "Welcome back",
@@ -52,6 +63,7 @@
     "working": "Working…",
     "designingWorkflow": "Designing workflow",
     "workflowReady": "Workflow ready",
+    "workflowFailed": "Workflow build failed",
     "stepsProgress": "{{done}} of {{total}} steps",
     "thinkingLabel": "Thinking",
     "verb": {
@@ -82,6 +94,7 @@
     "empty": "No connections yet.",
     "connected": "connected",
     "connect": "connect",
+    "noCode": "No client code for this provider.",
     "disconnect": "disconnect",
     "needsConnection": "needs connection",
     "addAccount": "Add account",
@@ -143,8 +156,10 @@
       "input": "input",
       "state": "state",
       "runs": "runs",
-      "code": "code"
-    }
+      "code": "code",
+      "provider": "provider"
+    },
+    "noProviders": "This workflow uses no providers."
   },
   "node": {
     "selectStep": "Select a step to see its details, settings, and generated code.",
@@ -192,6 +207,10 @@
   "trigger": {
     "title": "Trigger",
     "subtitle": "how this workflow starts",
+    "nextRun": "Next run",
+    "ran": "Ran",
+    "failed": "Failed",
+    "cronEveryDay": "Every day {{time}}",
     "endpoint": "Endpoint",
     "webhookInfo": "Send a POST here; the JSON body becomes the trigger output.",
     "saveFirst": "Save the workflow first to get its webhook URL.",
@@ -214,6 +233,9 @@
   "language": {
     "label": "Language",
     "en": "English",
-    "tr": "Türkçe"
+    "tr": "Türkçe",
+    "de": "Deutsch",
+    "fr": "Français",
+    "es": "Español"
   }
 }

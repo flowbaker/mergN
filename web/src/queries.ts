@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef } from "react";
 import type { UIMessage } from "ai";
 import type { AuthoredFunc, InputForm, TriggerConfig, Wire } from "./types";
 import { getSpace, spaceHeaders } from "./space";
@@ -21,6 +22,8 @@ export interface SavedWorkflow {
   nodeConnections?: Record<string, Record<string, string>>;
   trigger?: TriggerConfig;
   inputForm?: InputForm;
+  variables?: Record<string, unknown>;
+  conversationId?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -35,16 +38,19 @@ export interface SaveInput {
   nodeConnections: Record<string, Record<string, string>>;
   trigger: TriggerConfig;
   inputForm: InputForm | null;
+  variables?: Record<string, unknown>;
+  conversationId?: string;
 }
 
 export function generateInputForm(
   goal: string,
   fields: string[],
+  fieldHints?: Record<string, string>,
 ): Promise<InputForm> {
   return json<InputForm>("/api/input-form", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ goal, fields }),
+    body: JSON.stringify({ goal, fields, fieldHints }),
   });
 }
 
@@ -55,6 +61,20 @@ async function json<T>(url: string, init?: RequestInit): Promise<T> {
   });
   if (!res.ok) throw new Error(`request failed: ${res.status}`);
   return res.json() as Promise<T>;
+}
+
+export type ActivationState = "active" | "paused" | "none";
+
+export function getWorkflowStatus(id: string): Promise<{ state: ActivationState }> {
+  return json(`/api/workflows/${id}/status`);
+}
+
+export function pauseWorkflow(id: string): Promise<{ ok: boolean }> {
+  return json(`/api/workflows/${id}/pause`, { method: "POST" });
+}
+
+export function resumeWorkflow(id: string): Promise<{ ok: boolean }> {
+  return json(`/api/workflows/${id}/resume`, { method: "POST" });
 }
 
 export function useWorkflows() {
@@ -75,7 +95,10 @@ export function useSaveWorkflow() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
       }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["workflows"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["workflows"] });
+      qc.invalidateQueries({ queryKey: ["conversations", getSpace()] });
+    },
   });
 }
 
@@ -90,6 +113,15 @@ export function useDeleteWorkflow() {
 
 export function fetchWorkflow(id: string): Promise<SavedWorkflow> {
   return json<SavedWorkflow>(`/api/workflows/${id}`);
+}
+
+export interface ProviderSource {
+  clientSource: string;
+  credentialFields: { name: string; label: string }[];
+}
+
+export function fetchProviderSource(id: string): Promise<ProviderSource> {
+  return json<ProviderSource>(`/api/providers/${id}/source`);
 }
 
 export interface SpaceMeta {
@@ -263,6 +295,7 @@ export interface ConversationMeta {
   id: string;
   title: string;
   updatedAt: string;
+  workflowId?: string;
 }
 
 export function useConversations() {
@@ -322,6 +355,79 @@ export interface RunDoc {
   records: RunRecord[];
   startedAt: string;
   finishedAt: string;
+}
+
+export function useRunStream(
+  workflowId: string | null,
+  enabled: boolean,
+  onEvent?: (status: "done" | "failed") => void,
+) {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  const cb = useRef(onEvent);
+  cb.current = onEvent;
+  useEffect(() => {
+    if (!workflowId || !user || !enabled) return;
+    const ctrl = new AbortController();
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/runs/stream?workflow=${encodeURIComponent(workflowId)}`,
+          { headers: spaceHeaders(), signal: ctrl.signal },
+        );
+        if (!res.body) return;
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        for (;;) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          const text = decoder.decode(value);
+          if (text.includes('"id"')) {
+            qc.invalidateQueries({ queryKey: ["runs", workflowId] });
+            cb.current?.(text.includes('"failed"') ? "failed" : "done");
+          }
+        }
+      } catch {
+        void 0;
+      }
+    })();
+    return () => ctrl.abort();
+  }, [workflowId, user, enabled, qc]);
+}
+
+export interface LlmSettings {
+  provider: string;
+  model: string;
+  baseURL: string;
+  hasApiKey: boolean;
+  configured: boolean;
+  locked: boolean;
+}
+
+export function saveLlmSettings(body: {
+  provider: string;
+  model?: string;
+  baseURL?: string;
+  apiKey?: string;
+}): Promise<{ ok: boolean }> {
+  return json("/api/settings/llm", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+export function useLlmSettings() {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["llm-settings"],
+    queryFn: () => json<LlmSettings>("/api/settings/llm"),
+    enabled: !!user,
+    // don't refetch when the window regains focus — you may have tabbed away to
+    // copy a key, and a refetch mid-edit churns the picker.
+    refetchOnWindowFocus: false,
+    staleTime: Infinity,
+  });
 }
 
 export function useRuns(workflowId: string | null) {

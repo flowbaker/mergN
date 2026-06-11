@@ -1,14 +1,28 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, Loader2, Check, Pencil } from "lucide-react";
+import { ArrayEditorDialog } from "./ArrayEditorDialog";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import type { AuthoredFunc, InputForm, RunStepData, Wire } from "./types";
+import type { AuthoredFunc, InputForm, RunStepData, TriggerConfig, Wire } from "./types";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { spaceHeaders } from "./space";
 import { useAuth } from "./authContext";
-import { useRuns, fetchRun, generateInputForm } from "./queries";
+import {
+  useRuns,
+  fetchRun,
+  generateInputForm,
+  fetchProviderSource,
+  type ProviderSource,
+} from "./queries";
 import { CodeBlock } from "./CodeBlock";
 
 interface RunRecord {
@@ -34,6 +48,12 @@ function pretty(v: unknown): string {
   }
 }
 
+function SaveDot({ cur, saved }: { cur: string; saved: boolean }) {
+  if (!saved) return <Loader2 className="h-3.5 w-3.5 animate-spin text-rose-400" />;
+  if (cur !== "") return <Check className="h-3.5 w-3.5 text-emerald-400" />;
+  return null;
+}
+
 export function RunPanel({
   funcs,
   wires,
@@ -43,7 +63,13 @@ export function RunPanel({
   workflowName,
   inputForm,
   onInputForm,
-  triggerFields,
+  variableFields,
+  trigger,
+  savedTrigger,
+  onTriggerParam,
+  variables,
+  onVariables,
+  persistedVars,
   syncing,
   selected,
   theme,
@@ -59,7 +85,13 @@ export function RunPanel({
   workflowName: string;
   inputForm: InputForm | null;
   onInputForm: (form: InputForm | null) => void;
-  triggerFields: string[];
+  variableFields: string[];
+  trigger: TriggerConfig;
+  savedTrigger: TriggerConfig;
+  onTriggerParam: (key: string, value: string) => void;
+  variables: Record<string, unknown>;
+  onVariables: (vars: Record<string, unknown>) => void;
+  persistedVars: Record<string, unknown>;
   syncing: boolean;
   selected: AuthoredFunc | null;
   theme: "dark" | "light";
@@ -85,10 +117,19 @@ export function RunPanel({
   const [error, setError] = useState<string | null>(null);
   const [loadingRun, setLoadingRun] = useState<string | null>(null);
   const [currentRunId, setCurrentRunId] = useState<string | null>(null);
-  const [tab, setTab] = useState<"input" | "state" | "runs" | "code">("input");
-  const [formValues, setFormValues] = useState<Record<string, string>>({});
+  const [tab, setTab] = useState<
+    "input" | "state" | "runs" | "code" | "provider"
+  >("input");
+  const [nodeView, setNodeView] = useState<string>("");
+  const [provView, setProvView] = useState<string>("");
+  const [provSource, setProvSource] = useState<ProviderSource | null>(null);
+  const [provLoading, setProvLoading] = useState(false);
+  const [formValues, setFormValues] = useState<Record<string, unknown>>(() => ({
+    ...variables,
+  }));
   const [inputMode, setInputMode] = useState<"form" | "json">("form");
   const [regenerating, setRegenerating] = useState(false);
+  const [editingArray, setEditingArray] = useState<string | null>(null);
 
   useEffect(() => {
     if (!inputForm) return;
@@ -97,19 +138,37 @@ export function RunPanel({
       for (const f of inputForm.fields) {
         if (next[f.name] === undefined)
           next[f.name] =
-            f.defaultValue ?? (f.control === "toggle" ? "false" : "");
+            f.control === "array"
+              ? []
+              : (f.defaultValue ?? (f.control === "toggle" ? "false" : ""));
       }
       return next;
     });
   }, [inputForm]);
 
-  const setField = (name: string, value: string) =>
-    setFormValues((prev) => ({ ...prev, [name]: value }));
+  const persistInput = (fv: Record<string, unknown>) => {
+    const next = { ...variables };
+    for (const f of inputForm?.fields ?? [])
+      next[f.name] = fv[f.name] ?? (f.control === "array" ? [] : "");
+    onVariables(next);
+  };
+
+  const setField = (name: string, value: unknown) => {
+    const next = { ...formValues, [name]: value };
+    setFormValues(next);
+    persistInput(next);
+  };
 
   const buildFormInput = (): Record<string, unknown> => {
     const obj: Record<string, unknown> = {};
     if (!inputForm) return obj;
     for (const f of inputForm.fields) {
+      if (f.control === "array") {
+        obj[f.name] = Array.isArray(formValues[f.name])
+          ? formValues[f.name]
+          : [];
+        continue;
+      }
       const v = formValues[f.name] ?? f.defaultValue ?? "";
       if (f.control === "toggle") {
         obj[f.name] = v === "true";
@@ -129,7 +188,13 @@ export function RunPanel({
     setRegenerating(true);
     setError(null);
     try {
-      const form = await generateInputForm(workflowName, triggerFields);
+      const hints: Record<string, string> = {};
+      for (const f of funcs) {
+        for (const p of f.inputs) {
+          if (variableFields.includes(p.name) && f.title) hints[p.name] = f.title;
+        }
+      }
+      const form = await generateInputForm(workflowName, variableFields, hints);
       onInputForm(form);
       setInputMode("form");
     } catch (e) {
@@ -140,6 +205,75 @@ export function RunPanel({
   };
 
   const useForm = !!inputForm && inputForm.fields.length > 0;
+
+  const providers = [
+    ...new Set(funcs.flatMap((f) => f.requires.map((r) => r.provider))),
+  ];
+  const activeProv =
+    provView && providers.includes(provView) ? provView : (providers[0] ?? "");
+  useEffect(() => {
+    if (!activeProv) {
+      setProvSource(null);
+      return;
+    }
+    let cancelled = false;
+    setProvLoading(true);
+    fetchProviderSource(activeProv)
+      .then((d) => !cancelled && setProvSource(d))
+      .catch(() => !cancelled && setProvSource(null))
+      .finally(() => !cancelled && setProvLoading(false));
+    return () => {
+      cancelled = true;
+    };
+  }, [activeProv]);
+
+
+  const formNames = new Set((inputForm?.fields ?? []).map((f) => f.name));
+  const fieldNamesByNode = new Map<string, Set<string>>();
+  for (const f of funcs) {
+    for (const p of f.inputs) {
+      if (p.role === "config" || !formNames.has(p.name)) continue;
+      if (wires.some((w) => w.to === f.id && w.toInput === p.name)) continue;
+      let set = fieldNamesByNode.get(f.id);
+      if (!set) {
+        set = new Set();
+        fieldNamesByNode.set(f.id, set);
+      }
+      set.add(p.name);
+    }
+  }
+  const nodesWithFields = funcs.filter(
+    (f) => (fieldNamesByNode.get(f.id)?.size ?? 0) > 0,
+  );
+  const titleCounts = new Map<string, number>();
+  for (const f of nodesWithFields) {
+    const base = f.title || f.id;
+    titleCounts.set(base, (titleCounts.get(base) ?? 0) + 1);
+  }
+  const triggerHasSettings =
+    trigger.kind === "poll" && (trigger.poll?.paramNames?.length ?? 0) > 0;
+  const views: { id: string; label: string }[] = [
+    ...(triggerHasSettings
+      ? [{ id: "__trigger", label: t("trigger.title") }]
+      : []),
+    ...nodesWithFields.map((f) => {
+      const base = f.title || f.id;
+      return {
+        id: f.id,
+        label: (titleCounts.get(base) ?? 0) > 1 ? `${base} · ${f.id.slice(0, 4)}` : base,
+      };
+    }),
+  ];
+  const activeNode =
+    nodeView && views.some((v) => v.id === nodeView)
+      ? nodeView
+      : (views[0]?.id ?? "");
+  const visibleFields =
+    activeNode === "__trigger"
+      ? []
+      : (inputForm?.fields ?? []).filter((f) =>
+          fieldNamesByNode.get(activeNode)?.has(f.name),
+        );
 
   const titleOf = (nodeId: string) =>
     nodeId === "trigger"
@@ -306,7 +440,8 @@ export function RunPanel({
         )}
 
         <div className="flex rounded-lg border border-border/50 bg-muted/50 p-0.5 text-xs">
-          {(["input", "state", "runs", "code"] as const).map((tabKey) => (
+          {(["input", "state", "runs", "code", "provider"] as const).map(
+            (tabKey) => (
             <button
               key={tabKey}
               onClick={() => setTab(tabKey)}
@@ -341,6 +476,23 @@ export function RunPanel({
       {tab === "input" ? (
         <div className="flex min-h-0 flex-1 flex-col px-3 pb-3">
           <div className="mb-2 flex items-center gap-2">
+            {views.length > 0 && (
+              <Select value={activeNode} onValueChange={setNodeView}>
+                <SelectTrigger
+                  size="sm"
+                  className="h-7 w-auto min-w-[150px] bg-background text-xs"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {views.map((v) => (
+                    <SelectItem key={v.id} value={v.id}>
+                      {v.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
             <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
               {syncing && (
                 <span className="flex items-center gap-1 text-amber-300">
@@ -350,7 +502,7 @@ export function RunPanel({
               )}
             </div>
             <div className="ml-auto flex items-center gap-1.5">
-              {triggerFields.length > 0 && (
+              {variableFields.length > 0 && (
                 <button
                   onClick={regenerate}
                   disabled={regenerating || syncing}
@@ -372,8 +524,24 @@ export function RunPanel({
                     <button
                       key={m}
                       onClick={() => {
-                        if (m === "json" && inputMode === "form")
+                        if (m === "json" && inputMode === "form") {
                           setInput(JSON.stringify(buildFormInput(), null, 2));
+                        } else if (m === "form" && inputMode === "json") {
+                          try {
+                            const parsed = JSON.parse(input || "{}");
+                            if (parsed && typeof parsed === "object") {
+                              setFormValues((prev) => {
+                                const next = { ...prev };
+                                for (const [k, v] of Object.entries(parsed)) {
+                                  next[k] = v;
+                                }
+                                return next;
+                              });
+                            }
+                          } catch {
+                            void 0;
+                          }
+                        }
                         setInputMode(m);
                       }}
                       className={cn(
@@ -391,15 +559,103 @@ export function RunPanel({
             </div>
           </div>
 
-          {useForm && inputMode === "form" ? (
+          <div className="min-h-0 flex-1 space-y-3 overflow-auto">
+          {activeNode === "__trigger" ? (
+            <div className="space-y-2 rounded-xl border border-border/50 bg-background p-3">
+              <div className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70">
+                Trigger settings
+              </div>
+              {(trigger.poll?.paramNames ?? []).map((name) => {
+                const cur = String(trigger.poll?.params?.[name] ?? "");
+                const saved =
+                  cur === String(savedTrigger.poll?.params?.[name] ?? "");
+                return (
+                  <div key={name} className="space-y-1">
+                    <label className="flex items-center gap-2 text-xs">
+                      <span className="font-mono text-[11px] text-foreground/90">
+                        {name}
+                      </span>
+                      <span className="text-[10px] uppercase tracking-wide text-rose-400/80">
+                        required
+                      </span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        value={cur}
+                        onChange={(e) => onTriggerParam(name, e.target.value)}
+                        placeholder={name}
+                        className="w-full rounded-lg border border-border/60 bg-background-subtle px-2.5 py-1.5 pr-8 text-[12px] text-foreground/90 outline-none focus:border-border"
+                      />
+                      <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2">
+                        <SaveDot cur={cur} saved={saved} />
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : useForm && inputMode === "form" ? (
             <div
               className={cn(
-                "min-h-0 flex-1 space-y-3 overflow-auto rounded-xl border border-border/50 bg-background p-3 transition-opacity",
+                "space-y-3 rounded-xl border border-border/50 bg-background p-3 transition-opacity",
                 syncing && "pointer-events-none opacity-50",
               )}
             >
-              {inputForm!.fields.map((f) => {
-                const value = formValues[f.name] ?? f.defaultValue ?? "";
+              {visibleFields.map((f) => {
+                if (f.control === "array") {
+                  const arr = Array.isArray(formValues[f.name])
+                    ? (formValues[f.name] as string[])
+                    : [];
+                  const saved =
+                    JSON.stringify(arr) ===
+                    JSON.stringify(
+                      Array.isArray(persistedVars[f.name])
+                        ? persistedVars[f.name]
+                        : [],
+                    );
+                  return (
+                    <div key={f.name} className="space-y-1">
+                      <label className="flex items-center gap-2 text-xs">
+                        <span className="font-medium">{f.label}</span>
+                        <span className="font-mono text-[10px] text-muted-foreground/50">
+                          {f.name}
+                        </span>
+                        {f.required && (
+                          <span className="text-[10px] text-rose-300/70">
+                            {t("run.required")}
+                          </span>
+                        )}
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setEditingArray(f.name)}
+                        className="flex w-full items-center gap-2 rounded-lg border border-border/50 bg-background-subtle px-2.5 py-1.5 text-left text-xs transition-colors hover:border-border"
+                      >
+                        <span className="min-w-0 flex-1 truncate">
+                          {arr.length ? (
+                            t("array.count", { count: arr.length })
+                          ) : (
+                            <span className="text-muted-foreground/50">
+                              {t("array.empty")}
+                            </span>
+                          )}
+                        </span>
+                        <SaveDot cur={arr.length ? "x" : ""} saved={saved} />
+                        <Pencil className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                      </button>
+                      {f.help && (
+                        <p className="text-[11px] leading-snug text-muted-foreground/70">
+                          {f.help}
+                        </p>
+                      )}
+                    </div>
+                  );
+                }
+                const value = String(
+                  formValues[f.name] ?? f.defaultValue ?? "",
+                );
+                const cur = String(formValues[f.name] ?? "");
+                const saved = cur === String(persistedVars[f.name] ?? "");
                 return (
                   <div key={f.name} className="space-y-1">
                     <label className="flex items-center gap-2 text-xs">
@@ -413,19 +669,20 @@ export function RunPanel({
                         </span>
                       )}
                     </label>
+                    <div className="relative">
                     {f.control === "textarea" ? (
                       <textarea
                         value={value}
                         onChange={(e) => setField(f.name, e.target.value)}
                         placeholder={f.placeholder}
                         rows={3}
-                        className="w-full resize-y rounded-lg border border-border/50 bg-background-subtle p-2 text-xs outline-none transition-colors focus:border-foreground/20"
+                        className="w-full resize-y rounded-lg border border-border/50 bg-background-subtle p-2 pr-8 text-xs outline-none transition-colors focus:border-foreground/20"
                       />
                     ) : f.control === "select" ? (
                       <select
                         value={value}
                         onChange={(e) => setField(f.name, e.target.value)}
-                        className="h-8 w-full rounded-lg border border-border/50 bg-background-subtle px-2 text-xs outline-none transition-colors focus:border-foreground/20"
+                        className="h-8 w-full rounded-lg border border-border/50 bg-background-subtle px-2 pr-8 text-xs outline-none transition-colors focus:border-foreground/20"
                       >
                         <option value="">
                           {f.placeholder ?? t("run.select")}
@@ -466,9 +723,15 @@ export function RunPanel({
                               : "text"
                         }
                         placeholder={f.placeholder}
-                        className="h-8 rounded-lg bg-background-subtle text-xs"
+                        className="h-8 w-full rounded-lg bg-background-subtle pr-8 text-xs"
                       />
                     )}
+                    {f.control !== "toggle" && (
+                      <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2">
+                        <SaveDot cur={cur} saved={saved} />
+                      </span>
+                    )}
+                    </div>
                     {f.help && (
                       <p className="text-[11px] leading-snug text-muted-foreground/70">
                         {f.help}
@@ -481,12 +744,29 @@ export function RunPanel({
           ) : (
             <textarea
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={(e) => {
+                const json = e.target.value;
+                setInput(json);
+                try {
+                  const parsed = JSON.parse(json);
+                  if (parsed && typeof parsed === "object") {
+                    const fv = { ...formValues };
+                    for (const [k, v] of Object.entries(parsed)) {
+                      fv[k] = v;
+                    }
+                    setFormValues(fv);
+                    persistInput(fv);
+                  }
+                } catch {
+                  void 0;
+                }
+              }}
               spellCheck={false}
               placeholder='{ "email": "ada@x.com", "amount": 2000 }'
-              className="min-h-0 flex-1 resize-none rounded-xl border border-border/50 bg-background p-3 font-mono text-xs outline-none transition-colors focus:border-foreground/20"
+              className="min-h-[220px] w-full resize-none rounded-xl border border-border/50 bg-background p-3 font-mono text-xs outline-none transition-colors focus:border-foreground/20"
             />
           )}
+          </div>
         </div>
       ) : tab === "runs" ? (
         <div className="min-h-0 flex-1 overflow-auto px-3 pb-3">
@@ -563,6 +843,76 @@ export function RunPanel({
                   wrap={false}
                   fill
                 />
+              </div>
+            </>
+          )}
+        </div>
+      ) : tab === "provider" ? (
+        <div className="flex min-h-0 flex-1 flex-col px-3 pb-3">
+          {providers.length === 0 ? (
+            <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
+              {t("run.noProviders")}
+            </div>
+          ) : (
+            <>
+              <div className="mb-2 flex items-center gap-2">
+                <Select value={activeProv} onValueChange={setProvView}>
+                  <SelectTrigger
+                    size="sm"
+                    className="h-7 w-auto min-w-[150px] bg-background text-xs"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {providers.map((p) => (
+                      <SelectItem key={p} value={p}>
+                        {p}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {provSource?.clientSource && (
+                  <button
+                    onClick={() =>
+                      navigator.clipboard?.writeText(provSource.clientSource)
+                    }
+                    className="ml-auto rounded-md border border-border/50 px-1.5 py-0.5 text-[10px] text-muted-foreground transition-colors hover:text-foreground"
+                  >
+                    {t("run.copy")}
+                  </button>
+                )}
+              </div>
+              {provSource?.credentialFields.length ? (
+                <div className="mb-2 flex flex-wrap gap-1.5">
+                  {provSource.credentialFields.map((f) => (
+                    <span
+                      key={f.name}
+                      title={f.label}
+                      className="rounded bg-muted/60 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground"
+                    >
+                      cred.{f.name}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+              <div className="min-h-0 flex-1">
+                {provLoading ? (
+                  <div className="flex h-full items-center justify-center">
+                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground/70" />
+                  </div>
+                ) : provSource?.clientSource ? (
+                  <CodeBlock
+                    source={provSource.clientSource}
+                    name={activeProv}
+                    theme={theme}
+                    wrap={false}
+                    fill
+                  />
+                ) : (
+                  <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
+                    {t("connections.noCode")}
+                  </div>
+                )}
               </div>
             </>
           )}
@@ -659,6 +1009,23 @@ export function RunPanel({
           )}
         </div>
       )}
+      {editingArray &&
+        (() => {
+          const fld = (inputForm?.fields ?? []).find(
+            (x) => x.name === editingArray,
+          );
+          const arr = Array.isArray(formValues[editingArray])
+            ? (formValues[editingArray] as string[])
+            : [];
+          return (
+            <ArrayEditorDialog
+              title={fld?.label ?? editingArray}
+              items={arr}
+              onChange={(items) => setField(editingArray, items)}
+              onClose={() => setEditingArray(null)}
+            />
+          );
+        })()}
     </div>
   );
 }

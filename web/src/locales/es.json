@@ -1,0 +1,241 @@
+{
+  "common": {
+    "save": "Guardar",
+    "saving": "guardando…",
+    "delete": "Eliminar",
+    "loading": "cargando…",
+    "loadingPage": "Cargando…",
+    "pleaseWait": "Por favor espera…",
+    "soon": "pronto",
+    "done": "Listo"
+  },
+  "array": {
+    "empty": "Aún no hay elementos.",
+    "add": "Añadir elemento",
+    "count": "{{count}} elementos"
+  },
+  "llm": {
+    "selectModel": "Elegir modelo",
+    "pickToStart": "Elige un modelo de IA para empezar",
+    "keyUnchanged": "•••••• (sin cambios)"
+  },
+  "auth": {
+    "welcomeBack": "Bienvenido de nuevo",
+    "getSetUp": "Vamos a configurarte",
+    "signinSubtitle": "Inicia sesión para guardar y ejecutar tus flujos de trabajo.",
+    "signupSubtitle": "Crea una cuenta para seguir construyendo.",
+    "name": "Nombre",
+    "email": "Correo electrónico",
+    "password": "Contraseña",
+    "signIn": "Iniciar sesión",
+    "signOut": "Cerrar sesión",
+    "createAccount": "Crear cuenta",
+    "failed": "Error de autenticación",
+    "toSignup": "¿No tienes cuenta? Regístrate",
+    "toSignin": "¿Ya tienes cuenta? Inicia sesión"
+  },
+  "header": {
+    "switchToLight": "Cambiar a claro",
+    "switchToDark": "Cambiar a oscuro",
+    "funcCount": "{{n}} función",
+    "configureTrigger": "Configurar disparador",
+    "connectionsNeeded_one": "{{count}} conexión necesaria",
+    "connectionsNeeded_other": "{{count}} conexiones necesarias"
+  },
+  "view": {
+    "story": "historia",
+    "pipeline": "pipeline",
+    "graph": "grafo"
+  },
+  "panel": {
+    "chat": "Chat",
+    "history": "Historial",
+    "node": "Nodo"
+  },
+  "chat": {
+    "tokens": "{{n}} tokens",
+    "newChat": "Nuevo chat",
+    "emptyTitle": "Crea un flujo de trabajo en lenguaje natural",
+    "emptySubtitle": "Describe lo que debe ocurrir. Yo conecto el disparador y los pasos por ti.",
+    "placeholder": "Escribe al builder…",
+    "thinking": "Pensando…",
+    "writing": "Escribiendo…",
+    "working": "Trabajando…",
+    "designingWorkflow": "Diseñando flujo de trabajo",
+    "workflowReady": "Flujo de trabajo listo",
+    "workflowFailed": "Error al crear el flujo de trabajo",
+    "stepsProgress": "{{done}} de {{total}} pasos",
+    "thinkingLabel": "Pensando",
+    "verb": {
+      "design_workflow": "Diseñando flujo de trabajo",
+      "author_func": "Escribiendo un paso",
+      "update_func": "Actualizando un paso",
+      "delete_func": "Eliminando un paso",
+      "wire": "Conectando pasos",
+      "unwire": "Desconectando",
+      "create_provider": "Creando proveedor",
+      "search_providers": "Buscando proveedores",
+      "repair_provider": "Reparando proveedor",
+      "list_connections": "Comprobando conexiones",
+      "request_connection": "Abriendo configuración de conexión"
+    },
+    "example": {
+      "stripeSlack": "Cuando un pago de Stripe tenga éxito, envía un recibo a Slack",
+      "digest": "Resume los nuevos registros y envíame un resumen diario por correo",
+      "github": "Ante un nuevo issue de GitHub, publica una nota de triaje en Discord"
+    }
+  },
+  "history": {
+    "newChat": "Nuevo chat",
+    "empty": "Aún no hay conversaciones."
+  },
+  "connections": {
+    "title": "Conexiones",
+    "empty": "Aún no hay conexiones.",
+    "connected": "conectado",
+    "connect": "conectar",
+    "noCode": "No hay código de cliente para este proveedor.",
+    "disconnect": "desconectar",
+    "needsConnection": "necesita conexión",
+    "addAccount": "Añadir cuenta",
+    "useFirst": "Primera disponible"
+  },
+  "pipeline": {
+    "describe": "Describe una automatización en el chat para crear un pipeline.",
+    "manualApi": "manual / api"
+  },
+  "story": {
+    "title": "Tu flujo de trabajo, en lenguaje natural",
+    "describe": "Describe una automatización en el chat — aparece aquí como pasos legibles que puedes seguir de principio a fin.",
+    "via": "vía {{provider}}",
+    "missing": "falta"
+  },
+  "workflows": {
+    "untitled": "Flujo de trabajo sin título",
+    "saved": "Guardado",
+    "newWorkflow": "Nuevo flujo de trabajo",
+    "empty": "Aún no hay flujos de trabajo guardados.",
+    "meta": "{{n}} funciones · {{date}}"
+  },
+  "spaces": {
+    "title": "Espacios",
+    "newSpace": "Nuevo espacio",
+    "spaceName": "Nombre del espacio",
+    "workspace": "Espacio de trabajo",
+    "signInToStart": "Inicia sesión para empezar",
+    "add": "Añadir"
+  },
+  "status": {
+    "done": "listo",
+    "failed": "fallido",
+    "pending": "pendiente",
+    "running": "en ejecución"
+  },
+  "run": {
+    "run": "▶ Ejecutar",
+    "running": "ejecutando…",
+    "resume": "⟲ Reanudar",
+    "resumeTitle": "Reejecutar desde el paso fallido, reutilizando salidas anteriores",
+    "doneCount": "{{done}}/{{total}} listos",
+    "invalidJson": "Entrada JSON no válida",
+    "updatingForm": "actualizando formulario…",
+    "makeFormTitle": "Generar un formulario de entrada a partir de los campos del disparador",
+    "formLabel": "formulario",
+    "makeForm": "crear formulario",
+    "required": "obligatorio",
+    "select": "Seleccionar…",
+    "saveForHistory": "Guarda el flujo de trabajo para mantener un historial de sus ejecuciones.",
+    "noRuns": "Aún no hay ejecuciones.",
+    "selectStepCode": "Selecciona un paso para ver su código generado.",
+    "copy": "copiar",
+    "emptyState": "Ejecuta el flujo de trabajo para ver aquí el estado de cada paso.",
+    "fixWithAi": "🔧 corregir con IA",
+    "steps_one": "{{count}} paso",
+    "steps_other": "{{count}} pasos",
+    "tab": {
+      "input": "entrada",
+      "state": "estado",
+      "runs": "ejecuciones",
+      "code": "código",
+      "provider": "proveedor"
+    },
+    "noProviders": "Este flujo de trabajo no usa proveedores."
+  },
+  "node": {
+    "selectStep": "Selecciona un paso para ver sus detalles, ajustes y código generado.",
+    "transform": "transformación",
+    "effectful": "con efecto",
+    "lastRun": "Última ejecución",
+    "inputLabel": "entrada",
+    "outputLabel": "salida",
+    "errorLabel": "error",
+    "settings": "Ajustes",
+    "inputs": "Entradas",
+    "output": "Salida",
+    "connections": "Conexiones",
+    "safety": "Seguridad",
+    "optional": "opcional",
+    "none": "ninguno",
+    "danger": "peligro",
+    "idempotency": "idempotencia"
+  },
+  "connectionDialog": {
+    "notConnected": "no conectado",
+    "name": "Nombre",
+    "nameThis": "Nombra esta conexión (opcional)",
+    "nameHelp": "Una etiqueta para distinguirla de otras conexiones, p. ej. \"trabajo\" o \"prueba\".",
+    "connectedOn": "Conectado el {{date}}",
+    "disconnect": "Desconectar",
+    "redirectInfo": "Serás redirigido a {{name}} para autorizar el acceso.",
+    "redirectInfoScope": "Serás redirigido a {{name}} para autorizar el acceso con el ámbito {{scopes}}.",
+    "waitingAuth": "esperando autorización…",
+    "connectWith": "Conectar con {{name}}",
+    "useDifferentApp": "Usar otra app OAuth",
+    "addAnother": "Añadir otra cuenta",
+    "noOAuthApp": "No hay ninguna app OAuth configurada para {{name}}. Registra una (URL de redirección {{url}}) y luego pega sus credenciales.",
+    "clientId": "ID de cliente",
+    "clientSecret": "Secreto de cliente",
+    "authorizeUrl": "URL de autorización",
+    "tokenUrl": "URL del token",
+    "saveConnect": "Guardar y conectar con {{name}}",
+    "credentials": "Credenciales",
+    "required": "obligatorio",
+    "connect": "Conectar",
+    "connecting": "conectando…",
+    "connectionFailed": "error de conexión"
+  },
+  "trigger": {
+    "title": "Disparador",
+    "subtitle": "cómo se inicia este flujo de trabajo",
+    "nextRun": "Próxima ejecución",
+    "ran": "Ejecutado",
+    "failed": "Fallido",
+    "cronEveryDay": "Todos los días {{time}}",
+    "endpoint": "Endpoint",
+    "webhookInfo": "Envía un POST aquí; el cuerpo JSON se convierte en la salida del disparador.",
+    "saveFirst": "Guarda primero el flujo de trabajo para obtener su URL de webhook.",
+    "applyHint": "Guarda el flujo de trabajo para aplicar este disparador.",
+    "kind": {
+      "manual": "Manual",
+      "webhook": "Webhook",
+      "schedule": "Programación",
+      "poll": "Sondeo",
+      "event": "Evento"
+    },
+    "desc": {
+      "manual": "Ejecutar manualmente desde el panel de ejecución.",
+      "webhook": "Ejecutar cuando un POST HTTP llega a una URL.",
+      "schedule": "Ejecutar según una programación cron.",
+      "poll": "Comprobar un servicio periódicamente en busca de nuevos datos.",
+      "event": "Ejecutar ante un evento de una app conectada."
+    }
+  },
+  "language": {
+    "label": "Idioma",
+    "en": "English",
+    "tr": "Türkçe",
+    "de": "Deutsch",
+    "fr": "Français",
+    "es": "Español"
+  }
+}

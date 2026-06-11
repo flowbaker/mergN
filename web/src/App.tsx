@@ -25,16 +25,22 @@ import { WorkflowsPanel } from "./WorkflowsPanel";
 import { SpaceSwitcher } from "./SpaceSwitcher";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 import { ConnectionsPanel } from "./ConnectionsPanel";
+import { triggerIntervalMs } from "./schedule-display";
 import { ChatHistory } from "./ChatHistory";
 import { RunPanel } from "./RunPanel";
 import {
   useSaveWorkflow,
+  useRunStream,
   fetchWorkflow,
   generateInputForm,
   useConnections,
   useConversations,
   useDeleteConversation,
+  getWorkflowStatus,
+  pauseWorkflow,
+  resumeWorkflow,
   type ConnectionMeta,
+  type ActivationState,
 } from "./queries";
 import type {
   AuthoredFunc,
@@ -62,7 +68,7 @@ function buildNode(
   position: { x: number; y: number },
   status: string | undefined,
   needsConnection: boolean,
-  inputs: { name: string; bound: boolean }[],
+  inputs: { name: string; bound: boolean; variable?: boolean }[],
 ): Node {
   return {
     id: f.id,
@@ -137,6 +143,9 @@ export function App({
     kind: "manual",
   });
   const [triggerOpen, setTriggerOpen] = useState(false);
+  const [activation, setActivation] = useState<ActivationState | "loading">("none");
+  const [actBusy, setActBusy] = useState(false);
+  const [statusVersion, setStatusVersion] = useState(0);
   const [inputForm, setInputForm] = useState<InputForm | null>(null);
   const [formSyncing, setFormSyncing] = useState(false);
   const [autoSave, setAutoSave] = useState(false);
@@ -163,8 +172,13 @@ export function App({
   const [nodeConnections, setNodeConnections] = useState<
     Record<string, Record<string, string>>
   >({});
+  const [variables, setVariables] = useState<Record<string, unknown>>({});
+  const [persistedVars, setPersistedVars] = useState<Record<string, unknown>>(
+    {},
+  );
   const [activeTab, setActiveTab] = useState<RightTab>("chat");
   const [conversationId, setConversationId] = useState<string | null>(null);
+  const [loadedConvId, setLoadedConvId] = useState<string | null>(null);
   const [view, setView] = useState<"story" | "pipeline" | "graph">("story");
   const [bottomHeight, setBottomHeight] = useState(256);
   const [building, setBuilding] = useState(false);
@@ -191,7 +205,7 @@ export function App({
     [bottomHeight],
   );
 
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const saveMutation = useSaveWorkflow();
   const { user, requireAuth, signOut } = useAuth();
   const { data: connections = NO_CONNECTIONS } = useConnections();
@@ -257,18 +271,39 @@ export function App({
     return [...fields];
   }, [wires]);
 
+  const variableFields = useMemo(() => {
+    const names = new Set<string>();
+    for (const f of funcs) {
+      for (const p of f.inputs) {
+        if (p.role === "config") continue;
+        if (wires.some((w) => w.to === f.id && w.toInput === p.name)) continue;
+        names.add(p.name);
+      }
+    }
+    return [...names];
+  }, [funcs, wires]);
+
   useEffect(() => {
-    if (!inputForm) return;
-    const have = inputForm.fields
+    const have = (inputForm?.fields ?? [])
       .map((f) => f.name)
       .sort()
       .join("|");
-    const want = [...triggerFields].sort().join("|");
+    const want = [...variableFields].sort().join("|");
     if (have === want) return;
+    if (variableFields.length === 0) {
+      if (inputForm) setInputForm(null);
+      return;
+    }
+    const hints: Record<string, string> = {};
+    for (const f of funcs) {
+      for (const p of f.inputs) {
+        if (variableFields.includes(p.name) && f.title) hints[p.name] = f.title;
+      }
+    }
     const t = setTimeout(async () => {
       setFormSyncing(true);
       try {
-        const form = await generateInputForm(name, triggerFields);
+        const form = await generateInputForm(name, variableFields, hints);
         setInputForm(form);
       } catch {
         void 0;
@@ -277,7 +312,25 @@ export function App({
       }
     }, 500);
     return () => clearTimeout(t);
-  }, [triggerFields, inputForm, name]);
+  }, [variableFields, inputForm, name, funcs]);
+
+  useEffect(() => {
+    if (!inputForm) return;
+    const arrayNames = new Set<string>();
+    for (const f of funcs)
+      for (const p of f.inputs)
+        if (p.type === "array") arrayNames.add(p.name);
+    const needsPatch = inputForm.fields.some(
+      (fld) => arrayNames.has(fld.name) && fld.control !== "array",
+    );
+    if (!needsPatch) return;
+    setInputForm({
+      ...inputForm,
+      fields: inputForm.fields.map((fld) =>
+        arrayNames.has(fld.name) ? { ...fld, control: "array" as const } : fld,
+      ),
+    });
+  }, [inputForm, funcs]);
 
   const onSelectNode = useCallback((id: string) => {
     if (id === "trigger") {
@@ -287,6 +340,61 @@ export function App({
     setSelectedId(id);
     setActiveTab("node");
   }, []);
+
+  const scheduling = trigger.kind === "schedule" || trigger.kind === "poll";
+
+  const [fireAnchor, setFireAnchor] = useState<number | null>(null);
+  const [firePulse, setFirePulse] = useState(0);
+  const [fireStatus, setFireStatus] = useState<"done" | "failed">("done");
+  useRunStream(workflowId, trigger.kind !== "manual", (status) => {
+    setFireAnchor(Date.now());
+    setFireStatus(status);
+    setFirePulse((p) => p + 1);
+  });
+  useEffect(() => {
+    setFireAnchor(scheduling && activation === "active" ? Date.now() : null);
+  }, [scheduling, activation, workflowId]);
+  const [justFired, setJustFired] = useState(false);
+  useEffect(() => {
+    if (firePulse === 0) return;
+    setJustFired(true);
+    const tm = setTimeout(() => setJustFired(false), 1500);
+    return () => clearTimeout(tm);
+  }, [firePulse]);
+
+  useEffect(() => {
+    if (!workflowId || !scheduling) {
+      setActivation("none");
+      return;
+    }
+    let cancelled = false;
+    getWorkflowStatus(workflowId)
+      .then((s) => !cancelled && setActivation(s.state))
+      .catch(() => !cancelled && setActivation("none"));
+    return () => {
+      cancelled = true;
+    };
+  }, [workflowId, scheduling, statusVersion]);
+
+  const toggleActivation = async () => {
+    if (!workflowId || actBusy) return;
+    setActBusy(true);
+    try {
+      if (activation === "active") {
+        await pauseWorkflow(workflowId);
+        setActivation("paused");
+      } else {
+        await save();
+        await resumeWorkflow(workflowId);
+        setActivation("active");
+      }
+    } catch {
+      setActivation(activation);
+    } finally {
+      setStatusVersion((v) => v + 1);
+      setActBusy(false);
+    }
+  };
 
   const onRepair = useCallback(
     (
@@ -379,10 +487,38 @@ export function App({
         setInputForm(o.inputForm);
       } else if (o.kind === "name") {
         setName(o.name);
-        setAutoSave(true);
       }
     }
+    setAutoSave(true);
   }, [ops]);
+
+  useEffect(() => {
+    const eventFields = trigger.eventFields ?? [];
+    setWires((prev) => {
+      const kept = prev.filter(
+        (w) => !(w.from === "trigger" && !eventFields.includes(w.fromOutput)),
+      );
+      const additions: Wire[] = [];
+      for (const f of funcs) {
+        for (const p of f.inputs) {
+          if (p.role === "config" || !eventFields.includes(p.name)) continue;
+          const wired = kept.some(
+            (w) => w.to === f.id && w.toInput === p.name,
+          );
+          if (!wired) {
+            additions.push({
+              from: "trigger",
+              fromOutput: p.name,
+              to: f.id,
+              toInput: p.name,
+            });
+          }
+        }
+      }
+      if (kept.length === prev.length && additions.length === 0) return prev;
+      return additions.length ? [...kept, ...additions] : kept;
+    });
+  }, [funcs, trigger]);
 
   useEffect(() => {
     setNodes((prev) => {
@@ -391,12 +527,20 @@ export function App({
         const needsConnection =
           !f.pure && f.requires.some((r) => !connectedProviders.has(r.provider));
         const cfg = configValues[f.id] ?? {};
-        const inputs = f.inputs.map((p) => ({
-          name: p.name,
-          bound:
-            wires.some((w) => w.to === f.id && w.toInput === p.name) ||
-            (cfg[p.name] !== undefined && cfg[p.name] !== ""),
-        }));
+        const inputs = f.inputs.map((p) => {
+          const wired = wires.some(
+            (w) => w.to === f.id && w.toInput === p.name,
+          );
+          const isConfig = p.role === "config";
+          return {
+            name: p.name,
+            bound: wired || (cfg[p.name] !== undefined && cfg[p.name] !== ""),
+            variable: !wired && !isConfig,
+          };
+        });
+        inputs.sort(
+          (a, b) => Number(a.variable ?? false) - Number(b.variable ?? false),
+        );
         return buildNode(
           f,
           prevPos.get(f.id) ??
@@ -406,14 +550,42 @@ export function App({
           inputs,
         );
       });
-      if (funcs.length === 0 && triggerFields.length === 0) return funcNodes;
+      if (
+        trigger.kind === "manual" ||
+        (funcs.length === 0 && triggerFields.length === 0)
+      )
+        return funcNodes;
       const triggerNode: Node = {
         id: "trigger",
         type: "trigger",
         position:
           prevPos.get("trigger") ??
           positionsRef.current["trigger"] ?? { x: 40, y: 160 },
-        data: { fields: triggerFields, kind: trigger.kind },
+        data: {
+          fields: triggerFields,
+          kind: trigger.kind,
+          activation,
+          busy: actBusy,
+          onToggle: toggleActivation,
+          nextFireAt:
+            scheduling && activation === "active" && fireAnchor != null
+              ? (() => {
+                  const ms = triggerIntervalMs(trigger);
+                  return ms ? fireAnchor + ms : undefined;
+                })()
+              : undefined,
+          cron:
+            scheduling &&
+            activation === "active" &&
+            trigger.kind === "schedule" &&
+            trigger.schedule?.mode === "cron"
+              ? trigger.schedule.cron
+              : undefined,
+          fired:
+            scheduling && activation === "active" && justFired
+              ? fireStatus
+              : undefined,
+        },
       };
       return [triggerNode, ...funcNodes];
     });
@@ -424,13 +596,19 @@ export function App({
     runStatus,
     connectedProviders,
     triggerFields,
-    trigger.kind,
+    trigger,
+    activation,
+    actBusy,
+    scheduling,
+    fireAnchor,
+    justFired,
+    fireStatus,
     setNodes,
   ]);
 
   const rfEdges: Edge[] = useMemo(() => {
     const ids = new Set(funcs.map((f) => f.id));
-    ids.add("trigger");
+    if (trigger.kind !== "manual") ids.add("trigger");
     return wires
       .filter((w) => ids.has(w.from) && ids.has(w.to))
       .map((w) => ({
@@ -442,7 +620,7 @@ export function App({
         animated: true,
         style: { stroke: "#6ea8ff" },
       }));
-  }, [wires, funcs]);
+  }, [wires, funcs, trigger.kind]);
 
   const reset = () => {
     setFuncs([]);
@@ -458,6 +636,9 @@ export function App({
     setTrigger({ kind: "manual" });
     setSavedTrigger({ kind: "manual" });
     setInputForm(null);
+    setVariables({});
+    setPersistedVars({});
+    setLoadedConvId(null);
   };
 
   const save = async () => {
@@ -473,9 +654,13 @@ export function App({
       nodeConnections,
       trigger,
       inputForm,
+      variables,
+      conversationId: conversationId ?? undefined,
     });
+    setPersistedVars(variables);
     setWorkflowId(id);
     setSavedTrigger(trigger);
+    setStatusVersion((v) => v + 1);
     if (spaceId) {
       void navigate({
         to: "/s/$spaceId/w/$workflowId",
@@ -489,7 +674,24 @@ export function App({
     void save();
   };
 
+  const applyVariables = useCallback((vars: Record<string, unknown>) => {
+    setVariables(vars);
+    setAutoSave(true);
+  }, []);
+
+  const setTriggerParam = useCallback((key: string, value: string) => {
+    setTrigger((t) => {
+      if (t.kind !== "poll" || !t.poll) return t;
+      return {
+        ...t,
+        poll: { ...t.poll, params: { ...(t.poll.params ?? {}), [key]: value } },
+      };
+    });
+    setAutoSave(true);
+  }, []);
+
   const openWorkflow = (id: string) => {
+    setActiveTab("chat");
     if (spaceId) {
       void navigate({
         to: "/s/$spaceId/w/$workflowId",
@@ -502,6 +704,8 @@ export function App({
 
   const newWorkflow = () => {
     reset();
+    setConversationId(crypto.randomUUID());
+    setActiveTab("chat");
     if (spaceId) void navigate({ to: "/s/$spaceId", params: { spaceId } });
   };
 
@@ -512,7 +716,7 @@ export function App({
       void save();
     }, 350);
     return () => clearTimeout(t);
-  }, [autoSave, funcs, user]);
+  }, [autoSave, funcs, user, variables, trigger]);
 
   const load = async (id: string) => {
     const wf = await fetchWorkflow(id);
@@ -527,6 +731,10 @@ export function App({
     setTrigger(wf.trigger ?? { kind: "manual" });
     setSavedTrigger(wf.trigger ?? { kind: "manual" });
     setInputForm(wf.inputForm ?? null);
+    setVariables(wf.variables ?? {});
+    setPersistedVars(wf.variables ?? {});
+    setConversationId(wf.conversationId ?? wf.id);
+    setLoadedConvId(wf.conversationId ?? wf.id);
   };
 
   useEffect(() => {
@@ -693,6 +901,7 @@ export function App({
               </div>
               <div style={{ height: bottomHeight }} className="shrink-0">
                 <RunPanel
+                  key={workflowId ?? "new"}
                   funcs={funcs}
                   wires={wires}
                   config={configValues}
@@ -701,7 +910,13 @@ export function App({
                   workflowName={name}
                   inputForm={inputForm}
                   onInputForm={setInputForm}
-                  triggerFields={triggerFields}
+                  variableFields={variableFields}
+                  trigger={trigger}
+                  savedTrigger={savedTrigger}
+                  onTriggerParam={setTriggerParam}
+                  variables={variables}
+                  onVariables={applyVariables}
+                  persistedVars={persistedVars}
                   syncing={formSyncing}
                   selected={selected}
                   theme={theme}
@@ -734,7 +949,13 @@ export function App({
           }
           history={
             <ChatHistory
-              conversations={conversationsQuery.data ?? []}
+              conversations={(conversationsQuery.data ?? []).filter((cv) =>
+                workflowId
+                  ? cv.workflowId === workflowId ||
+                    cv.id === conversationId ||
+                    cv.id === loadedConvId
+                  : cv.id === conversationId,
+              )}
               isLoading={conversationsQuery.isLoading}
               currentId={conversationId}
               onSelect={selectChat}
@@ -764,6 +985,9 @@ export function App({
           onChange={setTrigger}
           workflowId={workflowId}
           dirty={trigger.kind !== savedTrigger.kind}
+          activation={activation}
+          busy={actBusy}
+          onToggleActivation={toggleActivation}
           onClose={() => setTriggerOpen(false)}
         />
       )}

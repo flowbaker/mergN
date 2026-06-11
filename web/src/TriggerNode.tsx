@@ -1,15 +1,83 @@
+import { useEffect, useState } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { useTranslation } from "react-i18next";
-import { Zap } from "lucide-react";
+import { Zap, Clock, CalendarClock, Check, AlertCircle } from "lucide-react";
+import { cn } from "@/lib/utils";
+import type { ActivationState } from "./queries";
 
 interface TriggerNodeData {
   fields: string[];
   kind?: string;
+  activation?: ActivationState | "loading";
+  busy?: boolean;
+  onToggle?: () => void;
+  nextFireAt?: number;
+  cron?: string;
+  fired?: "done" | "failed";
+}
+
+function formatRemaining(ms: number): string {
+  const s = Math.ceil(ms / 1000);
+  const sec = s % 60;
+  const m = Math.floor(s / 60) % 60;
+  const h = Math.floor(s / 3600) % 24;
+  const day = Math.floor(s / 86400);
+  const p = (n: number) => String(n).padStart(2, "0");
+  if (day > 0) return `${day}d ${h}h`;
+  if (h > 0) return `${h}:${p(m)}:${p(sec)}`;
+  return `${m}:${p(sec)}`;
+}
+
+function Countdown({ at, className }: { at: number; className?: string }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  return <span className={className}>{formatRemaining(Math.max(0, at - now))}</span>;
+}
+
+function describeCron(
+  cron: string,
+  locale: string,
+  t: (key: string, opts?: Record<string, unknown>) => string,
+): string {
+  const f = cron.trim().split(/\s+/);
+  const fields = f.length === 6 ? f.slice(1) : f;
+  if (fields.length !== 5) return cron;
+  const [min, hour, dom, mon, dow] = fields;
+  if (!/^\d+$/.test(min) || !/^\d+$/.test(hour)) return cron;
+  const time = `${hour.padStart(2, "0")}:${min.padStart(2, "0")}`;
+  if (dom !== "*" || mon !== "*") return cron;
+  if (dow === "*") return t("trigger.cronEveryDay", { time });
+  const dayName = (d: number) =>
+    new Intl.DateTimeFormat(locale, { weekday: "long" }).format(
+      new Date(Date.UTC(2024, 0, 7 + d)),
+    );
+  if (/^[0-6](,[0-6])*$/.test(dow))
+    return `${dow.split(",").map((x) => dayName(Number(x))).join(", ")} · ${time}`;
+  if (/^[0-6]-[0-6]$/.test(dow)) {
+    const [a, b] = dow.split("-").map(Number);
+    return `${dayName(a)}–${dayName(b)} · ${time}`;
+  }
+  return cron;
 }
 
 export function TriggerNode({ data }: NodeProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const d = data as unknown as TriggerNodeData;
+  const showToggle =
+    (d.activation === "active" || d.activation === "paused") && !!d.onToggle;
+  const scheduleText = d.cron ? describeCron(d.cron, i18n.language, t) : null;
+
+  const failed = d.fired === "failed";
+  const flashBorder = failed
+    ? "border-rose-500/25 bg-rose-500/10"
+    : "border-emerald-500/20 bg-emerald-500/10";
+  const flashText = failed ? "text-rose-500" : "text-emerald-500";
+  const flashLabel = failed ? t("trigger.failed") : t("trigger.ran");
+  const FlashIcon = failed ? AlertCircle : Check;
+
   return (
     <div className="w-56 rounded-3xl border border-tone-amber/40 bg-tone-amber/5 p-1">
       <div className="overflow-hidden rounded-[1.2rem] bg-background ring-1 ring-tone-amber/20">
@@ -25,6 +93,32 @@ export function TriggerNode({ data }: NodeProps) {
               {t(`trigger.kind.${d.kind ?? "manual"}`)}
             </p>
           </div>
+          {showToggle && (
+            <button
+              type="button"
+              disabled={d.busy}
+              onClick={(e) => {
+                e.stopPropagation();
+                d.onToggle?.();
+              }}
+              className={cn(
+                "flex h-fit items-center gap-1.5 self-center rounded-lg border px-2 py-1 text-[11px] transition-colors disabled:opacity-50",
+                d.activation === "active"
+                  ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
+                  : "border-border/60 bg-background-subtle text-muted-foreground",
+              )}
+            >
+              <span
+                className={cn(
+                  "size-2 rounded-full",
+                  d.activation === "active"
+                    ? "bg-emerald-400"
+                    : "bg-muted-foreground/50",
+                )}
+              />
+              {d.activation === "active" ? "Active" : "Paused"}
+            </button>
+          )}
         </div>
 
         {d.fields.length > 0 && (
@@ -45,6 +139,47 @@ export function TriggerNode({ data }: NodeProps) {
             ))}
           </div>
         )}
+
+        {scheduleText ? (
+          <div
+            className={cn(
+              "flex items-center gap-1.5 border-t px-2.5 py-1.5 transition-colors duration-300",
+              d.fired ? flashBorder : "border-tone-amber/15 bg-tone-amber/[0.04]",
+            )}
+          >
+            {d.fired ? (
+              <FlashIcon className={cn("size-3.5 shrink-0", flashText)} strokeWidth={3} />
+            ) : (
+              <CalendarClock className="size-3.5 shrink-0 text-tone-amber-fg/70" />
+            )}
+            <span className="truncate text-[11px] font-medium text-foreground/80">
+              {d.fired ? flashLabel : scheduleText}
+            </span>
+          </div>
+        ) : d.nextFireAt ? (
+          <div
+            className={cn(
+              "flex items-center gap-1.5 border-t px-2.5 py-1.5 transition-colors duration-300",
+              d.fired ? flashBorder : "border-tone-amber/15 bg-tone-amber/[0.04]",
+            )}
+          >
+            {d.fired ? (
+              <FlashIcon className={cn("size-3.5 shrink-0", flashText)} strokeWidth={3} />
+            ) : (
+              <Clock className="size-3.5 shrink-0 text-tone-amber-fg/70" />
+            )}
+            <span className="text-[11px] text-muted-foreground">
+              {d.fired ? flashLabel : t("trigger.nextRun")}
+            </span>
+            <Countdown
+              at={d.nextFireAt}
+              className={cn(
+                "ml-auto font-mono text-xs font-semibold tabular-nums",
+                d.fired ? flashText : "text-tone-amber-fg",
+              )}
+            />
+          </div>
+        ) : null}
       </div>
     </div>
   );

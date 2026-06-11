@@ -83,7 +83,9 @@ export function ConnectionsPanel({ missing }: { missing: string[] }) {
                   connected ? "text-muted-foreground" : "text-amber-300/80",
                 )}
               >
-                {connected ? t("connections.connected") : t("connections.connect")}
+                {connected
+                  ? t("connections.connected")
+                  : t("connections.connect")}
               </span>
             </button>
           );

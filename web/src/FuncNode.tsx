@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 interface Port {
   name: string;
   bound?: boolean;
+  variable?: boolean;
 }
 
 interface FuncNodeData {
@@ -94,12 +95,22 @@ export function FuncNode({ data, selected }: NodeProps) {
                   <PortDot
                     id={p.name}
                     type="target"
-                    tone={p.bound ? "!border-tone-blue" : "!border-tone-rose"}
+                    tone={
+                      p.variable
+                        ? "!border-tone-amber"
+                        : p.bound
+                          ? "!border-tone-blue"
+                          : "!border-tone-rose"
+                    }
                   />
                   <span
                     className={cn(
                       "truncate font-mono text-[11px]",
-                      p.bound ? "text-foreground/80" : "text-tone-rose-fg",
+                      p.variable
+                        ? "text-tone-amber-fg"
+                        : p.bound
+                          ? "text-foreground/80"
+                          : "text-tone-rose-fg",
                     )}
                   >
                     {p.name}

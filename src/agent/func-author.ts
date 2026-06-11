@@ -1,5 +1,5 @@
 import { generateText, Output } from "ai";
-import { google } from "@ai-sdk/google";
+import { getModel } from "./model";
 import { funcDraftZ, type FuncDraft } from "./schemas";
 import { trace, type AgentMeta } from "../observability";
 import type { Registry } from "../providers/registry";
@@ -17,6 +17,7 @@ const SYSTEM = [
   "- If there is no side effect, set pure=true, requires=[], and kind is usually 'adapter'.",
   "- If it calls an external service, set pure=false, fill requires, and pick a suitable dangerClass and idempotencyMechanism.",
   "- When a provider's connection API is given below, declare a connection with that provider id and call it exactly as documented.",
+  "- For each input you read as a LIST (input.x is iterated/mapped/indexed), declare its type as 'array' so the UI offers a list editor.",
 ].join("\n");
 
 export interface FuncSpec {
@@ -43,7 +44,7 @@ export async function authorFunc(
     ? `This step uses the '${prov.id}' provider (scopes: ${prov.scopes.join(", ") || "none"}). Connection API: ${prov.apiDoc}`
     : "";
   const { output: object } = await generateText({
-    model: google(process.env.GEMINI_MODEL ?? "gemini-2.5-flash"),
+    model: getModel(),
     output: Output.object({ schema: funcDraftZ }),
     system: SYSTEM,
     prompt: [`Task: ${spec.intent}`, providerNote].join("\n"),

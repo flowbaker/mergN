@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { DefaultChatTransport, type UIMessage } from "ai";
-import type { AuthoredFunc, InputForm, Wire, WorkflowOp } from "./types";
+import type { AuthoredFunc, InputForm, TriggerConfig, Wire, WorkflowOp } from "./types";
 import { Sparkles, ArrowUpRight, Brain, Loader2, SquarePen, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Markdown } from "./Markdown";
@@ -12,6 +12,7 @@ import { spaceHeaders } from "./space";
 import { useAuth } from "./authContext";
 import { useConversation } from "./queries";
 import { ConnectionDialog } from "./ConnectionDialog";
+import { ModelPicker } from "./ModelPicker";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -41,7 +42,7 @@ function usageOf(metadata: unknown): Usage | undefined {
 interface DesignItem {
   key: string;
   label: string;
-  status: "active" | "pending" | "done";
+  status: "active" | "pending" | "done" | "failed";
 }
 
 function fmtElapsed(ms: number): string {
@@ -70,7 +71,10 @@ function streamLabel(
         (p as { data?: { items?: DesignItem[] } }).data?.items ?? [];
       const active = items.find((it) => it.status === "active");
       if (active) return active.label;
-      if (items.length && items.some((it) => it.status !== "done"))
+      if (
+        items.length &&
+        items.some((it) => it.status === "active" || it.status === "pending")
+      )
         return t("chat.designingWorkflow");
     }
   }
@@ -93,15 +97,17 @@ function streamLabel(
 function DesignProgress({ items }: { items: DesignItem[] }) {
   const { t } = useTranslation();
   const allDone = items.length > 0 && items.every((i) => i.status === "done");
+  const failed = items.some((i) => i.status === "failed");
+  const settled = allDone || failed;
   const doneCount = items.filter((i) => i.status === "done").length;
   const pct = items.length ? Math.round((doneCount / items.length) * 100) : 0;
   const startRef = useRef(Date.now());
   const [, force] = useState(0);
   useEffect(() => {
-    if (allDone) return;
+    if (settled) return;
     const timer = setInterval(() => force((n) => n + 1), 250);
     return () => clearInterval(timer);
-  }, [allDone]);
+  }, [settled]);
   const elapsed = Date.now() - startRef.current;
 
   return (
@@ -109,7 +115,11 @@ function DesignProgress({ items }: { items: DesignItem[] }) {
       <div className="flex items-center gap-2.5">
         <div className="min-w-0 flex-1">
           <div className="text-sm font-medium leading-tight text-foreground">
-            {allDone ? t("chat.workflowReady") : t("chat.designingWorkflow")}
+            {failed
+              ? t("chat.workflowFailed")
+              : allDone
+                ? t("chat.workflowReady")
+                : t("chat.designingWorkflow")}
           </div>
           <div className="text-xs leading-tight text-muted-foreground">
             {t("chat.stepsProgress", { done: doneCount, total: items.length })}
@@ -124,9 +134,9 @@ function DesignProgress({ items }: { items: DesignItem[] }) {
         <div
           className={cn(
             "h-full rounded-full transition-all duration-500 ease-out",
-            allDone ? "bg-emerald-500" : "bg-amber-400",
+            failed ? "bg-rose-500" : allDone ? "bg-emerald-500" : "bg-amber-400",
           )}
-          style={{ width: `${pct}%` }}
+          style={{ width: failed ? "100%" : `${pct}%` }}
         />
       </div>
 
@@ -138,9 +148,11 @@ function DesignProgress({ items }: { items: DesignItem[] }) {
               "flex items-center gap-2.5 rounded-xl border px-2.5 py-1.5 text-[13px] transition-colors",
               it.status === "active"
                 ? "border-amber-500/25 bg-amber-500/[0.07]"
-                : it.status === "done"
-                  ? "border-border/40 bg-background/50"
-                  : "border-transparent bg-muted/20",
+                : it.status === "failed"
+                  ? "border-rose-500/25 bg-rose-500/[0.07]"
+                  : it.status === "done"
+                    ? "border-border/40 bg-background/50"
+                    : "border-transparent bg-muted/20",
             )}
           >
             {it.status === "done" ? (
@@ -149,6 +161,8 @@ function DesignProgress({ items }: { items: DesignItem[] }) {
               </span>
             ) : it.status === "active" ? (
               <Loader2 className="size-3.5 shrink-0 animate-spin text-amber-400" />
+            ) : it.status === "failed" ? (
+              <X className="size-3.5 shrink-0 text-rose-500" strokeWidth={3} />
             ) : (
               <span className="flex size-3.5 shrink-0 items-center justify-center">
                 <span className="size-1.5 rounded-full ring-1 ring-muted-foreground/30" />
@@ -403,7 +417,7 @@ function ChatThread({
               name?: string;
               funcs?: AuthoredFunc[];
               wires?: Wire[];
-              trigger?: { kind: "manual" | "webhook" };
+              trigger?: TriggerConfig;
               inputForm?: InputForm;
             };
             if (dw.name)
@@ -636,6 +650,8 @@ function ChatThread({
           </Button>
         </div>
       </form>
+
+      <ModelPicker />
 
       {connectProvider && (
         <ConnectionDialog

@@ -6,7 +6,18 @@
     "loading": "yükleniyor…",
     "loadingPage": "Yükleniyor…",
     "pleaseWait": "Lütfen bekleyin…",
-    "soon": "yakında"
+    "soon": "yakında",
+    "done": "Tamam"
+  },
+  "array": {
+    "empty": "Henüz öğe yok.",
+    "add": "Öğe ekle",
+    "count": "{{count}} öğe"
+  },
+  "llm": {
+    "selectModel": "Model seç",
+    "pickToStart": "Başlamak için bir AI modeli seç",
+    "keyUnchanged": "•••••• (değişmedi)"
   },
   "auth": {
     "welcomeBack": "Tekrar hoş geldin",
@@ -52,6 +63,7 @@
     "working": "Çalışıyor…",
     "designingWorkflow": "Akış tasarlanıyor",
     "workflowReady": "Akış hazır",
+    "workflowFailed": "Akış kurulamadı",
     "stepsProgress": "{{total}} adımdan {{done}} tanesi",
     "thinkingLabel": "Düşünüyor",
     "verb": {
@@ -82,6 +94,7 @@
     "empty": "Henüz bağlantı yok.",
     "connected": "bağlı",
     "connect": "bağlan",
+    "noCode": "Bu sağlayıcının istemci kodu yok.",
     "disconnect": "bağlantıyı kes",
     "needsConnection": "bağlantı gerekli",
     "addAccount": "Hesap ekle",
@@ -143,8 +156,10 @@
       "input": "girdi",
       "state": "durum",
       "runs": "çalıştırmalar",
-      "code": "kod"
-    }
+      "code": "kod",
+      "provider": "sağlayıcı"
+    },
+    "noProviders": "Bu workflow sağlayıcı kullanmıyor."
   },
   "node": {
     "selectStep": "Detaylarını, ayarlarını ve üretilen kodu görmek için bir adım seç.",
@@ -192,6 +207,10 @@
   "trigger": {
     "title": "Tetikleyici",
     "subtitle": "bu akış nasıl başlar",
+    "nextRun": "Sonraki",
+    "ran": "Çalıştı",
+    "failed": "Hata",
+    "cronEveryDay": "Her gün {{time}}",
     "endpoint": "Uç nokta",
     "webhookInfo": "Buraya bir POST gönder; JSON gövdesi tetikleyici çıktısı olur.",
     "saveFirst": "Webhook URL'sini almak için önce akışı kaydet.",
@@ -214,6 +233,9 @@
   "language": {
     "label": "Dil",
     "en": "English",
-    "tr": "Türkçe"
+    "tr": "Türkçe",
+    "de": "Deutsch",
+    "fr": "Français",
+    "es": "Español"
   }
 }

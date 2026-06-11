@@ -7,6 +7,7 @@ export interface ConversationMeta {
   id: string;
   title: string;
   updatedAt: string;
+  workflowId?: string;
 }
 
 export interface ConversationDoc {
@@ -14,6 +15,7 @@ export interface ConversationDoc {
   userId: string;
   title: string;
   messages: unknown[];
+  workflowId?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -38,6 +40,12 @@ export interface ChatStore {
     spaceId: string,
     userId: string,
     id: string,
+  ): Promise<void>;
+  linkWorkflow(
+    spaceId: string,
+    userId: string,
+    id: string,
+    workflowId: string,
   ): Promise<void>;
 }
 
@@ -91,7 +99,12 @@ export function createChatStore(store: DocStore): ChatStore {
       )) as unknown as ConversationDoc[];
       return docs
         .filter((d) => d.userId === userId)
-        .map((d) => ({ id: d.id, title: d.title, updatedAt: d.updatedAt }))
+        .map((d) => ({
+          id: d.id,
+          title: d.title,
+          updatedAt: d.updatedAt,
+          workflowId: d.workflowId,
+        }))
         .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
     },
 
@@ -105,6 +118,7 @@ export function createChatStore(store: DocStore): ChatStore {
         userId,
         title: existing?.title ?? deriveTitle(messages),
         messages,
+        workflowId: existing?.workflowId,
         createdAt: existing?.createdAt ?? now,
         updatedAt: now,
       };
@@ -119,6 +133,17 @@ export function createChatStore(store: DocStore): ChatStore {
     async deleteConversation(spaceId, userId, id) {
       const doc = await read(spaceId, userId, id);
       if (doc) await store.remove(spaceId, COLLECTION, id);
+    },
+
+    async linkWorkflow(spaceId, userId, id, workflowId) {
+      const existing = await read(spaceId, userId, id);
+      if (!existing || existing.workflowId === workflowId) return;
+      await store.put(
+        spaceId,
+        COLLECTION,
+        id,
+        { ...existing, workflowId } as unknown as Record<string, unknown>,
+      );
     },
   };
 }

@@ -16,27 +16,39 @@ import {
   type UIMessage,
   type UIMessageStreamWriter,
 } from "ai";
-import { google } from "@ai-sdk/google";
+import {
+  getModel,
+  setLlmConfig,
+  getLlmConfig,
+  type LlmConfig,
+} from "../agent/model";
 import { z } from "zod";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { authorFunc } from "../agent/func-author";
-import { createWorkflowStore } from "./store";
+import { createWorkflowStore, type TriggerConfig, type WorkflowStore } from "./store";
 import { createRunStore, type RunDoc } from "./runs";
+import { createSettingsStore } from "./settings";
 import {
   createMemoryRateLimiter,
   type RateLimitResult,
   type RateLimitRule,
 } from "./ratelimit";
 import { runWorkflow } from "./run";
+import { emitRun, onRun } from "./run-events";
 import { createRegistry, publicAuth } from "../providers/registry";
-import { assertSpace } from "../store/docstore";
+import { assertSpace, type DocStore } from "../store/docstore";
 import { createStorage } from "../store/factory";
 import { authorProvider, repairProvider } from "../agent/provider-author";
 import { designWorkflow, planWorkflow } from "../agent/workflow-designer";
 import { authorInputForm } from "../agent/form-author";
 import { createConnections } from "./connections";
 import { createChatStore } from "./chat";
+import { connectNats, initSchedulerStream, type NatsCtx } from "./nats";
+import { createScheduler, missingRequiredParams, type Scheduler } from "./scheduler";
+import { createSchedulerConsumer, fireWorkflow } from "./scheduler-consumer";
+import { createScheduleStore, type ScheduleStore } from "../store/schedules";
+import { createPollRunner } from "./poll-runner";
 import { resolveEgressHost } from "./egress";
 import { createOAuth } from "./oauth";
 import { auth, getSessionUser } from "./auth";
@@ -173,6 +185,20 @@ const oauth = createOAuth({ store, vault, registry });
 const connections = createConnections({ store, vault, oauth });
 const workflows = createWorkflowStore(store);
 const runs = createRunStore(store);
+const settings = createSettingsStore(store);
+
+// load the saved LLM config (in-app settings) into the model factory at boot;
+// it overrides env. Self-host can configure the model from the UI, no .env.
+void settings
+  .getLlm()
+  .then((cfg) => {
+    if (cfg) setLlmConfig(cfg);
+    const active = getLlmConfig();
+    console.log(
+      `[llm] provider=${active.provider} model=${active.model ?? "(default)"}`,
+    );
+  })
+  .catch((e) => console.error("llm settings load failed", e));
 const membership = createMembership(store);
 const chats = createChatStore(store);
 
@@ -189,17 +215,20 @@ async function runSavedWorkflow(
     wires: unknown[];
     config?: Record<string, Record<string, string>>;
     nodeConnections?: Record<string, Record<string, string>>;
+    variables?: Record<string, unknown>;
   },
   input: Record<string, unknown>,
   trigger: string,
+  runId?: string,
 ): Promise<RunDoc> {
   const startedAt = new Date().toISOString();
   const records: StepRecord[] = [];
+  const merged = { ...(wf.variables ?? {}), ...input };
   await runWorkflow(
     { spaceId, registry, connections },
     wf.funcs as Parameters<typeof runWorkflow>[1],
     wf.wires as Parameters<typeof runWorkflow>[2],
-    input,
+    merged,
     wf.config ?? {},
     wf.nodeConnections ?? {},
     (record) => {
@@ -207,18 +236,131 @@ async function runSavedWorkflow(
     },
   );
   const run: RunDoc = {
-    id: randomUUID(),
+    id: runId ?? randomUUID(),
     workflowId: wf.id,
     workflowName: wf.name,
     trigger,
     status: records.some((r) => r.status === "failed") ? "failed" : "done",
-    input,
+    input: merged,
     records,
     startedAt,
     finishedAt: new Date().toISOString(),
   };
   await runs.saveRun(spaceId, run);
+  emitRun(spaceId, {
+    id: run.id,
+    workflowId: run.workflowId,
+    status: run.status,
+    trigger: run.trigger,
+  });
   return run;
+}
+
+async function recoverSchedules(
+  sched: Scheduler,
+  scheduleStore: ScheduleStore,
+  workflowStore: WorkflowStore,
+  docStore: DocStore,
+): Promise<number> {
+  let count = 0;
+  const spaceIds = await docStore.spaces();
+  for (const spaceId of spaceIds) {
+    const metas = await workflowStore.listWorkflows(spaceId);
+    const live = new Set(metas.map((m) => m.id));
+    for (const meta of metas) {
+      const wf = await workflowStore.getWorkflow(spaceId, meta.id);
+      if (!wf) continue;
+      try {
+        await sched.reconcile(spaceId, wf, { force: true });
+        if (wf.trigger?.kind === "schedule" || wf.trigger?.kind === "poll") count++;
+      } catch (e) {
+        console.error("recovery reconcile failed", spaceId, meta.id, e);
+      }
+    }
+    const jobs = await scheduleStore.listBySpace(spaceId);
+    for (const job of jobs) {
+      if (live.has(job.workflowId)) continue;
+      try {
+        await sched.cancelByWorkflow(spaceId, job.workflowId);
+      } catch (e) {
+        console.error("recovery cancel failed", spaceId, job.workflowId, e);
+      }
+    }
+  }
+  return count;
+}
+
+const scheduleStore = createScheduleStore(store);
+const pollRunner = createPollRunner({ registry, connections });
+
+const SCHEDULER_STREAM = process.env.WF_SCHEDULER_STREAM ?? "WF_SCHEDULER";
+const SCHEDULER_SUBJECT_PREFIX = "wf.scheduled";
+
+let nats: NatsCtx | null = null;
+try {
+  nats = await connectNats(process.env.NATS_URL ?? "");
+} catch (e) {
+  console.error("nats connect failed; scheduler disabled", e);
+}
+const scheduler = nats
+  ? createScheduler({ nats, scheduleStore, subjectPrefix: SCHEDULER_SUBJECT_PREFIX })
+  : null;
+
+let schedulerConsumer: { start(): Promise<void>; stop(): void } | null = null;
+if (nats) {
+  await initSchedulerStream(
+    nats,
+    SCHEDULER_STREAM,
+    SCHEDULER_SUBJECT_PREFIX,
+    Number(process.env.WF_SCHEDULER_REPLICAS) || 1,
+  );
+  schedulerConsumer = createSchedulerConsumer({
+    nats,
+    streamName: SCHEDULER_STREAM,
+    filterSubject: `${SCHEDULER_SUBJECT_PREFIX}.fired.>`,
+    durableName: "wf-scheduler-fire",
+    scheduleStore,
+    pollRunner,
+    workflows,
+    runSavedWorkflow,
+    recordFailure: async (spaceId, wf, trigger, error) => {
+      const message = error instanceof Error ? error.message : String(error);
+      const id = randomUUID();
+      const now = new Date().toISOString();
+      const run: RunDoc = {
+        id,
+        workflowId: wf.id,
+        workflowName: wf.name,
+        trigger,
+        status: "failed",
+        input: {},
+        records: [
+          {
+            runId: id,
+            nodeId: wf.trigger?.poll?.provider ?? "trigger",
+            funcId: "trigger",
+            funcVersion: 1,
+            attempt: 1,
+            status: "failed",
+            resolvedInput: {},
+            error: message,
+          },
+        ],
+        startedAt: now,
+        finishedAt: now,
+      };
+      await runs.saveRun(spaceId, run);
+      emitRun(spaceId, { id, workflowId: wf.id, status: "failed", trigger });
+    },
+  });
+  await schedulerConsumer.start();
+  console.log("scheduler started");
+
+  void recoverSchedules(scheduler!, scheduleStore, workflows, store)
+    .then((n) => console.log(`scheduler recovery: reconciled ${n} scheduling workflow(s)`))
+    .catch((e) => console.error("scheduler recovery failed", e));
+} else {
+  console.log("scheduler disabled (no NATS_URL)");
 }
 
 function makeTools(
@@ -243,24 +385,31 @@ function makeTools(
       const items: {
         key: string;
         label: string;
-        status: "active" | "pending" | "done";
+        status: "active" | "pending" | "done" | "failed";
       }[] = [{ key: "plan", label: "Planning steps", status: "active" }];
       const emit = () =>
         writer.write({ type: "data-design", id: progressId, data: { items } });
       emit();
-      const plan = await planWorkflow(goal, meta);
-      items[0].status = "done";
-      emit();
-      const result = await designWorkflow(registry, spaceId, plan, goal, (ev) => {
-        const key = `${ev.kind}:${ev.id}`;
-        const found = items.find((i) => i.key === key);
-        if (found) found.status = ev.status;
-        else items.push({ key, label: ev.label, status: ev.status });
+      try {
+        const plan = await planWorkflow(goal, meta);
+        items[0].status = "done";
         emit();
-      }, meta);
-      for (const it of items) it.status = "done";
-      emit();
-      return result;
+        const result = await designWorkflow(registry, spaceId, plan, goal, (ev) => {
+          const key = `${ev.kind}:${ev.id}`;
+          const found = items.find((i) => i.key === key);
+          if (found) found.status = ev.status;
+          else items.push({ key, label: ev.label, status: ev.status });
+          emit();
+        }, meta);
+        for (const it of items) it.status = "done";
+        emit();
+        return result;
+      } catch (e) {
+        console.error("design_workflow failed:", e);
+        for (const it of items) if (it.status === "active") it.status = "failed";
+        emit();
+        throw e;
+      }
     },
     toModelOutput: ({ output }) => {
       const r = output as {
@@ -507,12 +656,25 @@ const app = new Hono<{ Variables: { spaceId: string; userId: string } }>();
 
 app.on(["POST", "GET"], "/api/auth/*", (c) => auth.handler(c.req.raw));
 
+// Self-host single-user mode: skip auth entirely and act as one local user.
+const DISABLE_AUTH =
+  process.env.DISABLE_AUTH === "1" || process.env.DISABLE_AUTH === "true";
+const LOCAL_USER = { id: "local", email: "local@localhost", name: "Local" };
+
+app.get("/api/config", (c) => c.json({ authDisabled: DISABLE_AUTH }));
+
 app.use("/api/*", async (c, next) => {
   const path = c.req.path;
-  if (path.startsWith("/api/auth/") || path.startsWith("/api/hooks/"))
+  if (
+    path.startsWith("/api/auth/") ||
+    path.startsWith("/api/hooks/") ||
+    path === "/api/config"
+  )
     return next();
 
-  const user = await getSessionUser(c.req.raw.headers);
+  const user = DISABLE_AUTH
+    ? LOCAL_USER
+    : await getSessionUser(c.req.raw.headers);
   if (!user) return c.json({ error: "unauthorized" }, 401);
 
   const personal = await membership.ensurePersonalSpace(user);
@@ -525,7 +687,7 @@ app.use("/api/*", async (c, next) => {
     } catch {
       return c.json({ error: "invalid space id" }, 400);
     }
-    if (!(await membership.canAccess(user.id, candidate)))
+    if (!DISABLE_AUTH && !(await membership.canAccess(user.id, candidate)))
       return c.json({ error: "forbidden" }, 403);
     spaceId = candidate;
   }
@@ -614,7 +776,7 @@ app.post("/api/chat", async (c) => {
     generateId: createIdGenerator({ prefix: "msg", size: 16 }),
     execute: ({ writer }) => {
       const result = streamText({
-        model: google(process.env.GEMINI_MODEL ?? "gemini-2.5-flash"),
+        model: getModel(),
         system,
         messages: modelMessages,
         stopWhen: stepCountIs(20),
@@ -668,8 +830,10 @@ app.put("/api/workflows/:id", async (c) => {
     positions?: Record<string, { x: number; y: number }>;
     config?: Record<string, Record<string, string>>;
     nodeConnections?: Record<string, Record<string, string>>;
-    trigger?: { kind: "manual" | "webhook" | "schedule" | "poll" | "event" };
+    trigger?: TriggerConfig;
     inputForm?: unknown;
+    variables?: Record<string, unknown>;
+    conversationId?: string;
   }>();
   const wf = await workflows.saveWorkflow(c.get("spaceId"), {
     id,
@@ -681,13 +845,79 @@ app.put("/api/workflows/:id", async (c) => {
     nodeConnections: body.nodeConnections ?? {},
     trigger: body.trigger ?? { kind: "manual" },
     inputForm: body.inputForm,
+    variables: body.variables,
+    conversationId: body.conversationId,
   });
+  if (body.conversationId) {
+    await chats.linkWorkflow(
+      c.get("spaceId"),
+      c.get("userId"),
+      body.conversationId,
+      id,
+    );
+  }
+  if (scheduler) {
+    try {
+      await scheduler.reconcile(c.get("spaceId"), wf);
+    } catch (e) {
+      console.error("schedule reconcile failed", e);
+    }
+  }
   return c.json(wf);
 });
 
 app.delete("/api/workflows/:id", async (c) => {
-  await workflows.deleteWorkflow(c.get("spaceId"), c.req.param("id"));
+  const spaceId = c.get("spaceId");
+  const id = c.req.param("id");
+  if (scheduler) {
+    try {
+      await scheduler.cancelByWorkflow(spaceId, id);
+    } catch (e) {
+      console.error("schedule cancel failed", e);
+    }
+  }
+  await workflows.deleteWorkflow(spaceId, id);
   return c.json({ ok: true });
+});
+
+app.get("/api/workflows/:id/status", async (c) => {
+  if (!scheduler) return c.json({ state: "none" });
+  return c.json(await scheduler.status(c.get("spaceId"), c.req.param("id")));
+});
+
+app.post("/api/workflows/:id/pause", async (c) => {
+  if (!scheduler) return c.json({ error: "scheduler disabled" }, 503);
+  await scheduler.pause(c.get("spaceId"), c.req.param("id"));
+  return c.json({ ok: true, state: "paused" });
+});
+
+app.post("/api/workflows/:id/resume", async (c) => {
+  if (!scheduler) return c.json({ error: "scheduler disabled" }, 503);
+  const spaceId = c.get("spaceId");
+  const id = c.req.param("id");
+  const wf = await workflows.getWorkflow(spaceId, id);
+  if (wf?.trigger?.kind === "poll" && missingRequiredParams(wf.trigger.poll)) {
+    return c.json({ error: "missing required parameters", state: "paused" }, 400);
+  }
+  await scheduler.resume(spaceId, id);
+  if (wf && wf.trigger?.kind === "poll") {
+    const job = (await scheduleStore.findByWorkflow(spaceId, id))[0];
+    if (job) {
+      try {
+        await fireWorkflow(
+          { pollRunner, scheduleStore, runSavedWorkflow },
+          spaceId,
+          wf,
+          job.jobId,
+          "poll",
+          job.cursor,
+        );
+      } catch (e) {
+        console.error("resume seed poll failed", e);
+      }
+    }
+  }
+  return c.json({ ok: true, state: "active" });
 });
 
 app.post("/api/run", async (c) => {
@@ -731,16 +961,25 @@ app.post("/api/run", async (c) => {
     );
     await stream.writeSSE({ data: "[DONE]" });
     if (body.workflowId) {
+      const status = records.some((r) => r.status === "failed")
+        ? "failed"
+        : "done";
       await runs.saveRun(spaceId, {
         id: runDocId,
         workflowId: body.workflowId,
         workflowName: body.workflowName ?? "untitled",
         trigger: body.resumeRunId ? "resume" : "manual",
-        status: records.some((r) => r.status === "failed") ? "failed" : "done",
+        status,
         input,
         records,
         startedAt,
         finishedAt: new Date().toISOString(),
+      });
+      emitRun(spaceId, {
+        id: runDocId,
+        workflowId: body.workflowId,
+        status,
+        trigger: body.resumeRunId ? "resume" : "manual",
       });
     }
   });
@@ -766,16 +1005,85 @@ app.post("/api/hooks/:spaceId/:workflowId", async (c) => {
 });
 
 app.post("/api/input-form", async (c) => {
-  const body = await c.req.json<{ goal?: string; fields?: string[] }>();
-  const form = await authorInputForm(body.goal ?? "", body.fields ?? [], {
-    spaceId: c.get("spaceId"),
-  });
+  const body = await c.req.json<{
+    goal?: string;
+    fields?: string[];
+    fieldHints?: Record<string, string>;
+  }>();
+  const form = await authorInputForm(
+    body.goal ?? "",
+    body.fields ?? [],
+    body.fieldHints,
+    { spaceId: c.get("spaceId") },
+  );
   return c.json(form);
+});
+
+app.get("/api/settings/llm", (c) => {
+  const cfg = getLlmConfig();
+  const p = cfg.provider;
+  // "configured" = a usable model is actually set: local needs a model name,
+  // cloud providers need a key (google can also use the GEMINI env key).
+  const configured =
+    p === "local" || p === "openai-compatible"
+      ? !!cfg.model
+      : p === "google"
+        ? !!cfg.apiKey || !!process.env.GOOGLE_GENERATIVE_AI_API_KEY
+        : !!cfg.apiKey;
+  return c.json({
+    provider: cfg.provider,
+    model: cfg.model ?? "",
+    baseURL: cfg.baseURL ?? "",
+    hasApiKey: !!cfg.apiKey,
+    configured,
+    locked: !!process.env.DISABLE_LLM_SETTINGS,
+  });
+});
+
+app.post("/api/settings/llm", async (c) => {
+  if (process.env.DISABLE_LLM_SETTINGS)
+    return c.json({ error: "llm settings are locked on this instance" }, 403);
+  const body = (await c.req.json()) as Partial<LlmConfig>;
+  const provider = String(body.provider ?? "").toLowerCase();
+  if (!provider) return c.json({ error: "provider required" }, 400);
+  const current = await settings.getLlm();
+  const cfg: LlmConfig = {
+    provider,
+    model: body.model || undefined,
+    baseURL: body.baseURL || undefined,
+    // the key is never sent back to the client, so an empty value means
+    // "keep the existing one".
+    apiKey: body.apiKey || current?.apiKey || undefined,
+  };
+  await settings.setLlm(cfg);
+  setLlmConfig(cfg);
+  return c.json({ ok: true });
 });
 
 app.get("/api/runs", async (c) => {
   const workflowId = c.req.query("workflow") || undefined;
   return c.json(await runs.listRuns(c.get("spaceId"), workflowId));
+});
+
+app.get("/api/runs/stream", async (c) => {
+  const spaceId = c.get("spaceId");
+  const workflowId = c.req.query("workflow");
+  if (!workflowId) return c.json({ error: "workflow required" }, 400);
+  return streamSSE(c, async (stream) => {
+    const off = onRun(spaceId, workflowId, (event) => {
+      void stream.writeSSE({ data: JSON.stringify(event) });
+    });
+    const ping = setInterval(() => {
+      void stream.writeSSE({ data: '{"type":"ping"}' });
+    }, 25000);
+    await new Promise<void>((resolve) => {
+      stream.onAbort(() => {
+        off();
+        clearInterval(ping);
+        resolve();
+      });
+    });
+  });
 });
 
 app.get("/api/runs/:id", async (c) => {
@@ -846,6 +1154,18 @@ app.get("/api/providers/:id/auth", async (c) => {
   const spec = registry.getProvider(c.get("spaceId"), c.req.param("id"));
   if (!spec) return c.json({ error: "provider not found" }, 404);
   return c.json(publicAuth(spec));
+});
+
+app.get("/api/providers/:id/source", async (c) => {
+  const spec = registry.getProvider(c.get("spaceId"), c.req.param("id"));
+  if (!spec) return c.json({ error: "provider not found" }, 404);
+  return c.json({
+    clientSource: spec.clientSource ?? "",
+    credentialFields: (spec.credential?.fields ?? []).map((f) => ({
+      name: f.name,
+      label: f.label,
+    })),
+  });
 });
 
 app.get("/api/providers/:id/oauth-config", async (c) => {
@@ -942,6 +1262,8 @@ serve({ fetch: app.fetch, port: Number(process.env.PORT) || 8787 }, (info) => {
 
 for (const signal of ["SIGTERM", "SIGINT"] as const) {
   process.on(signal, async () => {
+    schedulerConsumer?.stop();
+    if (nats) await nats.nc.close();
     await flushTraces();
     process.exit(0);
   });
