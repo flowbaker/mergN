@@ -1,5 +1,5 @@
 import { generateText, Output } from "ai";
-import { google } from "@ai-sdk/google";
+import { getModel } from "./model";
 import { z } from "zod";
 import { trace, type AgentMeta } from "../observability";
 
@@ -11,15 +11,17 @@ export const pollDraftZ = z.object({
     ),
   dependencies: z
     .array(z.string())
-    .optional()
+    .default([])
     .describe("npm packages the source imports directly; empty if none"),
   params: z
     .array(z.string())
+    .default([])
     .describe(
       "the input.<param> names (besides cursor) the source needs the user to supply, e.g. ['channelId']. Empty array if none.",
     ),
   itemFields: z
     .array(z.string())
+    .default([])
     .describe(
       "the field names present on EACH object in `items` — these become the workflow's trigger input, read by the steps as input.<field>. Use flat, clear names, e.g. ['content','authorUsername','channelId','messageId','timestamp']. The workflow steps will read exactly these names, so keep them stable and descriptive.",
     ),
@@ -41,7 +43,7 @@ export async function authorPollSource(
   meta?: AgentMeta,
 ): Promise<z.infer<typeof pollDraftZ>> {
   const { output } = await generateText({
-    model: google(process.env.GEMINI_MODEL ?? "gemini-2.5-flash"),
+    model: getModel(),
     output: Output.object({ schema: pollDraftZ }),
     system: POLL_SYSTEM,
     experimental_telemetry: trace("author-poll-source", { ...meta, provider }),

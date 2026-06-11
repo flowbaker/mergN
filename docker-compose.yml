@@ -6,24 +6,41 @@ services:
     environment:
       PORT: 8787
       WEB_DIR: ./web/dist
+      # sensible defaults so `docker compose up` boots with no .env; override in .env
+      APP_URL: ${APP_URL:-http://localhost:8787}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-dev-insecure-change-me-in-production}
+      # single-user local mode: no login screen, acts as one "local" user.
+      # set DISABLE_AUTH=0 (and configure auth) if you expose this beyond localhost.
+      DISABLE_AUTH: ${DISABLE_AUTH:-1}
       STORE_DRIVER: mongo
       MONGO_URL: mongodb://mongo:27017
       MONGO_DB: ${MONGO_DB:-workflow}
-      VAULT_DRIVER: s3
-      S3_BUCKET: ${S3_BUCKET:-workflow-secrets}
-      S3_REGION: us-east-1
-      S3_ENDPOINT: http://minio:9000
-      S3_FORCE_PATH_STYLE: "true"
-      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minio}
-      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-minio12345}
+      # secrets are stored in mongo (doc vault) — no extra service needed.
+      # for external S3, set VAULT_DRIVER=s3 + S3_*/AWS_* in .env.
+      VAULT_DRIVER: ${VAULT_DRIVER:-doc}
       NATS_URL: nats://nats:4222
+      CODE_RUNTIME: ${CODE_RUNTIME:-docker}
+      DOCKER_IMAGE: ${DOCKER_IMAGE:-node:22-slim}
+      DOCKER_WORK_DIR: /data/fb-work
+      DOCKER_VOLUME: fb-work
+      CODE_TIMEOUT_SEC: ${CODE_TIMEOUT_SEC:-30}
+    volumes:
+      # docker-out-of-docker: run each step in a sibling container on the host.
+      # Mounting the host socket grants the app host-level docker access — fine
+      # for single-tenant self-host. fb-work is shared with the step containers.
+      - /var/run/docker.sock:/var/run/docker.sock
+      - fb-work:/data/fb-work
+    # lets the app reach a local Ollama (LLM_BASE_URL=http://host.docker.internal:11434/v1)
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     env_file:
-      - .env
+      # optional: add your LLM key here (e.g. GOOGLE_GENERATIVE_AI_API_KEY).
+      # the app still boots without it via the defaults above.
+      - path: .env
+        required: false
     depends_on:
       mongo:
         condition: service_healthy
-      createbuckets:
-        condition: service_completed_successfully
       nats:
         condition: service_started
     restart: unless-stopped
@@ -31,46 +48,33 @@ services:
   nats:
     image: nats:2.14-alpine
     command: ["-js", "-sd", "/data"]
-    ports:
-      - "${NATS_PORT:-4222}:4222"
+    # internal only (app reaches it as nats:4222); no host port to avoid
+    # clashing with a local nats. Add a ports mapping if you need host access.
     volumes:
       - nats-data:/data
     restart: unless-stopped
 
   mongo:
     image: mongo:7
-    ports:
-      - "27018:27017"
+    # internal only (app reaches it as mongo:27017); no host port to avoid
+    # clashing with a local mongo. Add a ports mapping if you need host access.
+    # send mongo's (very chatty, per-connection) logs to a file instead of
+    # stdout so `docker compose up` stays readable. Inspect if needed:
+    #   docker compose exec mongo tail -f /data/db/mongod.log
+    command: ["mongod", "--quiet", "--logpath", "/data/db/mongod.log"]
     volumes:
       - mongo-data:/data/db
     healthcheck:
       test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
-      interval: 5s
+      interval: 30s
       timeout: 5s
-      retries: 10
+      retries: 5
+      start_period: 20s
+      start_interval: 2s
     restart: unless-stopped
-
-  minio:
-    image: minio/minio
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minio12345}
-    volumes:
-      - minio-data:/data
-    restart: unless-stopped
-
-  createbuckets:
-    image: minio/mc
-    depends_on:
-      - minio
-    entrypoint: >
-      /bin/sh -c "
-      until mc alias set local http://minio:9000 ${MINIO_ROOT_USER:-minio} ${MINIO_ROOT_PASSWORD:-minio12345}; do echo 'waiting for minio'; sleep 1; done;
-      mc mb --ignore-existing local/${S3_BUCKET:-workflow-secrets};
-      "
 
 volumes:
   mongo-data:
-  minio-data:
   nats-data:
+  fb-work:
+    name: fb-work

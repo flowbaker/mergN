@@ -16,13 +16,19 @@ import {
   type UIMessage,
   type UIMessageStreamWriter,
 } from "ai";
-import { google } from "@ai-sdk/google";
+import {
+  getModel,
+  setLlmConfig,
+  getLlmConfig,
+  type LlmConfig,
+} from "../agent/model";
 import { z } from "zod";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { authorFunc } from "../agent/func-author";
 import { createWorkflowStore, type TriggerConfig, type WorkflowStore } from "./store";
 import { createRunStore, type RunDoc } from "./runs";
+import { createSettingsStore } from "./settings";
 import {
   createMemoryRateLimiter,
   type RateLimitResult,
@@ -179,6 +185,20 @@ const oauth = createOAuth({ store, vault, registry });
 const connections = createConnections({ store, vault, oauth });
 const workflows = createWorkflowStore(store);
 const runs = createRunStore(store);
+const settings = createSettingsStore(store);
+
+// load the saved LLM config (in-app settings) into the model factory at boot;
+// it overrides env. Self-host can configure the model from the UI, no .env.
+void settings
+  .getLlm()
+  .then((cfg) => {
+    if (cfg) setLlmConfig(cfg);
+    const active = getLlmConfig();
+    console.log(
+      `[llm] provider=${active.provider} model=${active.model ?? "(default)"}`,
+    );
+  })
+  .catch((e) => console.error("llm settings load failed", e));
 const membership = createMembership(store);
 const chats = createChatStore(store);
 
@@ -303,6 +323,35 @@ if (nats) {
     pollRunner,
     workflows,
     runSavedWorkflow,
+    recordFailure: async (spaceId, wf, trigger, error) => {
+      const message = error instanceof Error ? error.message : String(error);
+      const id = randomUUID();
+      const now = new Date().toISOString();
+      const run: RunDoc = {
+        id,
+        workflowId: wf.id,
+        workflowName: wf.name,
+        trigger,
+        status: "failed",
+        input: {},
+        records: [
+          {
+            runId: id,
+            nodeId: wf.trigger?.poll?.provider ?? "trigger",
+            funcId: "trigger",
+            funcVersion: 1,
+            attempt: 1,
+            status: "failed",
+            resolvedInput: {},
+            error: message,
+          },
+        ],
+        startedAt: now,
+        finishedAt: now,
+      };
+      await runs.saveRun(spaceId, run);
+      emitRun(spaceId, { id, workflowId: wf.id, status: "failed", trigger });
+    },
   });
   await schedulerConsumer.start();
   console.log("scheduler started");
@@ -336,24 +385,31 @@ function makeTools(
       const items: {
         key: string;
         label: string;
-        status: "active" | "pending" | "done";
+        status: "active" | "pending" | "done" | "failed";
       }[] = [{ key: "plan", label: "Planning steps", status: "active" }];
       const emit = () =>
         writer.write({ type: "data-design", id: progressId, data: { items } });
       emit();
-      const plan = await planWorkflow(goal, meta);
-      items[0].status = "done";
-      emit();
-      const result = await designWorkflow(registry, spaceId, plan, goal, (ev) => {
-        const key = `${ev.kind}:${ev.id}`;
-        const found = items.find((i) => i.key === key);
-        if (found) found.status = ev.status;
-        else items.push({ key, label: ev.label, status: ev.status });
+      try {
+        const plan = await planWorkflow(goal, meta);
+        items[0].status = "done";
         emit();
-      }, meta);
-      for (const it of items) it.status = "done";
-      emit();
-      return result;
+        const result = await designWorkflow(registry, spaceId, plan, goal, (ev) => {
+          const key = `${ev.kind}:${ev.id}`;
+          const found = items.find((i) => i.key === key);
+          if (found) found.status = ev.status;
+          else items.push({ key, label: ev.label, status: ev.status });
+          emit();
+        }, meta);
+        for (const it of items) it.status = "done";
+        emit();
+        return result;
+      } catch (e) {
+        console.error("design_workflow failed:", e);
+        for (const it of items) if (it.status === "active") it.status = "failed";
+        emit();
+        throw e;
+      }
     },
     toModelOutput: ({ output }) => {
       const r = output as {
@@ -600,12 +656,25 @@ const app = new Hono<{ Variables: { spaceId: string; userId: string } }>();
 
 app.on(["POST", "GET"], "/api/auth/*", (c) => auth.handler(c.req.raw));
 
+// Self-host single-user mode: skip auth entirely and act as one local user.
+const DISABLE_AUTH =
+  process.env.DISABLE_AUTH === "1" || process.env.DISABLE_AUTH === "true";
+const LOCAL_USER = { id: "local", email: "local@localhost", name: "Local" };
+
+app.get("/api/config", (c) => c.json({ authDisabled: DISABLE_AUTH }));
+
 app.use("/api/*", async (c, next) => {
   const path = c.req.path;
-  if (path.startsWith("/api/auth/") || path.startsWith("/api/hooks/"))
+  if (
+    path.startsWith("/api/auth/") ||
+    path.startsWith("/api/hooks/") ||
+    path === "/api/config"
+  )
     return next();
 
-  const user = await getSessionUser(c.req.raw.headers);
+  const user = DISABLE_AUTH
+    ? LOCAL_USER
+    : await getSessionUser(c.req.raw.headers);
   if (!user) return c.json({ error: "unauthorized" }, 401);
 
   const personal = await membership.ensurePersonalSpace(user);
@@ -618,7 +687,7 @@ app.use("/api/*", async (c, next) => {
     } catch {
       return c.json({ error: "invalid space id" }, 400);
     }
-    if (!(await membership.canAccess(user.id, candidate)))
+    if (!DISABLE_AUTH && !(await membership.canAccess(user.id, candidate)))
       return c.json({ error: "forbidden" }, 403);
     spaceId = candidate;
   }
@@ -707,7 +776,7 @@ app.post("/api/chat", async (c) => {
     generateId: createIdGenerator({ prefix: "msg", size: 16 }),
     execute: ({ writer }) => {
       const result = streamText({
-        model: google(process.env.GEMINI_MODEL ?? "gemini-2.5-flash"),
+        model: getModel(),
         system,
         messages: modelMessages,
         stopWhen: stepCountIs(20),
@@ -948,6 +1017,47 @@ app.post("/api/input-form", async (c) => {
     { spaceId: c.get("spaceId") },
   );
   return c.json(form);
+});
+
+app.get("/api/settings/llm", (c) => {
+  const cfg = getLlmConfig();
+  const p = cfg.provider;
+  // "configured" = a usable model is actually set: local needs a model name,
+  // cloud providers need a key (google can also use the GEMINI env key).
+  const configured =
+    p === "local" || p === "openai-compatible"
+      ? !!cfg.model
+      : p === "google"
+        ? !!cfg.apiKey || !!process.env.GOOGLE_GENERATIVE_AI_API_KEY
+        : !!cfg.apiKey;
+  return c.json({
+    provider: cfg.provider,
+    model: cfg.model ?? "",
+    baseURL: cfg.baseURL ?? "",
+    hasApiKey: !!cfg.apiKey,
+    configured,
+    locked: !!process.env.DISABLE_LLM_SETTINGS,
+  });
+});
+
+app.post("/api/settings/llm", async (c) => {
+  if (process.env.DISABLE_LLM_SETTINGS)
+    return c.json({ error: "llm settings are locked on this instance" }, 403);
+  const body = (await c.req.json()) as Partial<LlmConfig>;
+  const provider = String(body.provider ?? "").toLowerCase();
+  if (!provider) return c.json({ error: "provider required" }, 400);
+  const current = await settings.getLlm();
+  const cfg: LlmConfig = {
+    provider,
+    model: body.model || undefined,
+    baseURL: body.baseURL || undefined,
+    // the key is never sent back to the client, so an empty value means
+    // "keep the existing one".
+    apiKey: body.apiKey || current?.apiKey || undefined,
+  };
+  await settings.setLlm(cfg);
+  setLlmConfig(cfg);
+  return c.json({ ok: true });
 });
 
 app.get("/api/runs", async (c) => {

@@ -8,6 +8,9 @@ RUN npm run build
 FROM node:22-slim AS runtime
 ENV NODE_ENV=production
 WORKDIR /app
+# docker CLI so the app can run each workflow step in a sibling container
+# (CODE_RUNTIME=docker). Talks to the host daemon via the mounted socket.
+COPY --from=docker:cli /usr/local/bin/docker /usr/local/bin/docker
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 COPY tsconfig.json ./

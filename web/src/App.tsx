@@ -345,8 +345,10 @@ export function App({
 
   const [fireAnchor, setFireAnchor] = useState<number | null>(null);
   const [firePulse, setFirePulse] = useState(0);
-  useRunStream(workflowId, trigger.kind !== "manual", () => {
+  const [fireStatus, setFireStatus] = useState<"done" | "failed">("done");
+  useRunStream(workflowId, trigger.kind !== "manual", (status) => {
     setFireAnchor(Date.now());
+    setFireStatus(status);
     setFirePulse((p) => p + 1);
   });
   useEffect(() => {
@@ -579,7 +581,10 @@ export function App({
             trigger.schedule?.mode === "cron"
               ? trigger.schedule.cron
               : undefined,
-          fired: scheduling && activation === "active" && justFired,
+          fired:
+            scheduling && activation === "active" && justFired
+              ? fireStatus
+              : undefined,
         },
       };
       return [triggerNode, ...funcNodes];
@@ -597,6 +602,7 @@ export function App({
     scheduling,
     fireAnchor,
     justFired,
+    fireStatus,
     setNodes,
   ]);
 

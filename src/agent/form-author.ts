@@ -1,5 +1,5 @@
 import { generateText, Output } from "ai";
-import { google } from "@ai-sdk/google";
+import { getModel } from "./model";
 import { z } from "zod";
 import { trace, type AgentMeta } from "../observability";
 
@@ -29,7 +29,7 @@ const fieldZ = z.object({
 
 export const inputFormZ = z.object({
   title: z.string().optional(),
-  fields: z.array(fieldZ),
+  fields: z.array(fieldZ).default([]),
 });
 
 export type InputForm = z.infer<typeof inputFormZ>;
@@ -59,7 +59,7 @@ export async function authorInputForm(
     .join("\n");
 
   const { output } = await generateText({
-    model: google(process.env.GEMINI_MODEL ?? "gemini-2.5-flash"),
+    model: getModel(),
     output: Output.object({ schema: inputFormZ }),
     system: SYSTEM,
     experimental_telemetry: trace("author-input-form", meta),

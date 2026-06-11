@@ -29,8 +29,10 @@ export const funcDraftZ = z.object({
       type: primitiveType,
       required: z.boolean(),
     }),
-  ),
-  outputFields: z.array(z.object({ name: z.string(), type: primitiveType })),
+  ).default([]),
+  outputFields: z
+    .array(z.object({ name: z.string(), type: primitiveType }))
+    .default([]),
   bodySource: z
     .string()
     .describe(
@@ -38,6 +40,7 @@ export const funcDraftZ = z.object({
     ),
   dependencies: z
     .array(z.string())
+    .default([])
     .describe(
       "npm packages this func imports directly (e.g. ['dayjs']). Empty array if none. Provider packages do not go here.",
     ),
@@ -46,9 +49,10 @@ export const funcDraftZ = z.object({
       z.object({
         name: z.string(),
         provider: z.string(),
-        scopes: z.array(z.string()),
+        scopes: z.array(z.string()).default([]),
       }),
     )
+    .default([])
     .describe("external connections; empty array for pure funcs"),
   dangerClass: z.enum(["benign", "costly", "catastrophic"]),
   idempotencyMechanism: z.enum([

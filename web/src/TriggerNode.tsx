@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { useTranslation } from "react-i18next";
-import { Zap, Clock, CalendarClock, Check } from "lucide-react";
+import { Zap, Clock, CalendarClock, Check, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ActivationState } from "./queries";
 
@@ -13,7 +13,7 @@ interface TriggerNodeData {
   onToggle?: () => void;
   nextFireAt?: number;
   cron?: string;
-  fired?: boolean;
+  fired?: "done" | "failed";
 }
 
 function formatRemaining(ms: number): string {
@@ -69,6 +69,14 @@ export function TriggerNode({ data }: NodeProps) {
   const showToggle =
     (d.activation === "active" || d.activation === "paused") && !!d.onToggle;
   const scheduleText = d.cron ? describeCron(d.cron, i18n.language, t) : null;
+
+  const failed = d.fired === "failed";
+  const flashBorder = failed
+    ? "border-rose-500/25 bg-rose-500/10"
+    : "border-emerald-500/20 bg-emerald-500/10";
+  const flashText = failed ? "text-rose-500" : "text-emerald-500";
+  const flashLabel = failed ? t("trigger.failed") : t("trigger.ran");
+  const FlashIcon = failed ? AlertCircle : Check;
 
   return (
     <div className="w-56 rounded-3xl border border-tone-amber/40 bg-tone-amber/5 p-1">
@@ -136,42 +144,38 @@ export function TriggerNode({ data }: NodeProps) {
           <div
             className={cn(
               "flex items-center gap-1.5 border-t px-2.5 py-1.5 transition-colors duration-300",
-              d.fired
-                ? "border-emerald-500/20 bg-emerald-500/10"
-                : "border-tone-amber/15 bg-tone-amber/[0.04]",
+              d.fired ? flashBorder : "border-tone-amber/15 bg-tone-amber/[0.04]",
             )}
           >
             {d.fired ? (
-              <Check className="size-3.5 shrink-0 text-emerald-500" strokeWidth={3} />
+              <FlashIcon className={cn("size-3.5 shrink-0", flashText)} strokeWidth={3} />
             ) : (
               <CalendarClock className="size-3.5 shrink-0 text-tone-amber-fg/70" />
             )}
             <span className="truncate text-[11px] font-medium text-foreground/80">
-              {d.fired ? t("trigger.ran") : scheduleText}
+              {d.fired ? flashLabel : scheduleText}
             </span>
           </div>
         ) : d.nextFireAt ? (
           <div
             className={cn(
               "flex items-center gap-1.5 border-t px-2.5 py-1.5 transition-colors duration-300",
-              d.fired
-                ? "border-emerald-500/20 bg-emerald-500/10"
-                : "border-tone-amber/15 bg-tone-amber/[0.04]",
+              d.fired ? flashBorder : "border-tone-amber/15 bg-tone-amber/[0.04]",
             )}
           >
             {d.fired ? (
-              <Check className="size-3.5 shrink-0 text-emerald-500" strokeWidth={3} />
+              <FlashIcon className={cn("size-3.5 shrink-0", flashText)} strokeWidth={3} />
             ) : (
               <Clock className="size-3.5 shrink-0 text-tone-amber-fg/70" />
             )}
             <span className="text-[11px] text-muted-foreground">
-              {d.fired ? t("trigger.ran") : t("trigger.nextRun")}
+              {d.fired ? flashLabel : t("trigger.nextRun")}
             </span>
             <Countdown
               at={d.nextFireAt}
               className={cn(
                 "ml-auto font-mono text-xs font-semibold tabular-nums",
-                d.fired ? "text-emerald-500" : "text-tone-amber-fg",
+                d.fired ? flashText : "text-tone-amber-fg",
               )}
             />
           </div>

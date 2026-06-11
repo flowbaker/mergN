@@ -1,0 +1,241 @@
+{
+  "common": {
+    "save": "Enregistrer",
+    "saving": "enregistrement…",
+    "delete": "Supprimer",
+    "loading": "chargement…",
+    "loadingPage": "Chargement…",
+    "pleaseWait": "Veuillez patienter…",
+    "soon": "bientôt",
+    "done": "Terminé"
+  },
+  "array": {
+    "empty": "Aucun élément.",
+    "add": "Ajouter un élément",
+    "count": "{{count}} éléments"
+  },
+  "llm": {
+    "selectModel": "Choisir un modèle",
+    "pickToStart": "Choisissez un modèle d'IA pour commencer",
+    "keyUnchanged": "•••••• (inchangé)"
+  },
+  "auth": {
+    "welcomeBack": "Bon retour",
+    "getSetUp": "Configurons votre compte",
+    "signinSubtitle": "Connectez-vous pour enregistrer et exécuter vos workflows.",
+    "signupSubtitle": "Créez un compte pour continuer à construire.",
+    "name": "Nom",
+    "email": "E-mail",
+    "password": "Mot de passe",
+    "signIn": "Se connecter",
+    "signOut": "Se déconnecter",
+    "createAccount": "Créer un compte",
+    "failed": "Échec de l'authentification",
+    "toSignup": "Pas de compte ? Inscrivez-vous",
+    "toSignin": "Déjà un compte ? Connectez-vous"
+  },
+  "header": {
+    "switchToLight": "Passer au clair",
+    "switchToDark": "Passer au sombre",
+    "funcCount": "{{n}} fonction",
+    "configureTrigger": "Configurer le déclencheur",
+    "connectionsNeeded_one": "{{count}} connexion requise",
+    "connectionsNeeded_other": "{{count}} connexions requises"
+  },
+  "view": {
+    "story": "récit",
+    "pipeline": "pipeline",
+    "graph": "graphe"
+  },
+  "panel": {
+    "chat": "Chat",
+    "history": "Historique",
+    "node": "Nœud"
+  },
+  "chat": {
+    "tokens": "{{n}} jetons",
+    "newChat": "Nouveau chat",
+    "emptyTitle": "Créez un workflow en langage naturel",
+    "emptySubtitle": "Décrivez ce qui doit se passer. Je relie le déclencheur et les étapes pour vous.",
+    "placeholder": "Écrivez au builder…",
+    "thinking": "Réflexion…",
+    "writing": "Rédaction…",
+    "working": "Traitement…",
+    "designingWorkflow": "Conception du workflow",
+    "workflowReady": "Workflow prêt",
+    "workflowFailed": "Échec de la création du workflow",
+    "stepsProgress": "{{done}} sur {{total}} étapes",
+    "thinkingLabel": "Réflexion",
+    "verb": {
+      "design_workflow": "Conception du workflow",
+      "author_func": "Rédaction d'une étape",
+      "update_func": "Mise à jour d'une étape",
+      "delete_func": "Suppression d'une étape",
+      "wire": "Connexion des étapes",
+      "unwire": "Déconnexion",
+      "create_provider": "Création du fournisseur",
+      "search_providers": "Recherche de fournisseurs",
+      "repair_provider": "Réparation du fournisseur",
+      "list_connections": "Vérification des connexions",
+      "request_connection": "Ouverture de la configuration de connexion"
+    },
+    "example": {
+      "stripeSlack": "Quand un paiement Stripe réussit, envoyer un reçu sur Slack",
+      "digest": "Résume les nouvelles inscriptions et envoie-moi un récapitulatif quotidien par e-mail",
+      "github": "Lors d'un nouveau ticket GitHub, publier une note de tri sur Discord"
+    }
+  },
+  "history": {
+    "newChat": "Nouveau chat",
+    "empty": "Aucune conversation pour l'instant."
+  },
+  "connections": {
+    "title": "Connexions",
+    "empty": "Aucune connexion pour l'instant.",
+    "connected": "connecté",
+    "connect": "connecter",
+    "noCode": "Aucun code client pour ce fournisseur.",
+    "disconnect": "déconnecter",
+    "needsConnection": "connexion requise",
+    "addAccount": "Ajouter un compte",
+    "useFirst": "Premier disponible"
+  },
+  "pipeline": {
+    "describe": "Décrivez une automatisation dans le chat pour créer un pipeline.",
+    "manualApi": "manuel / api"
+  },
+  "story": {
+    "title": "Votre workflow, en langage naturel",
+    "describe": "Décrivez une automatisation dans le chat — elle apparaît ici sous forme d'étapes lisibles que vous pouvez suivre de bout en bout.",
+    "via": "via {{provider}}",
+    "missing": "manquant"
+  },
+  "workflows": {
+    "untitled": "Workflow sans titre",
+    "saved": "Enregistré",
+    "newWorkflow": "Nouveau workflow",
+    "empty": "Aucun workflow enregistré pour l'instant.",
+    "meta": "{{n}} fonctions · {{date}}"
+  },
+  "spaces": {
+    "title": "Espaces",
+    "newSpace": "Nouvel espace",
+    "spaceName": "Nom de l'espace",
+    "workspace": "Espace de travail",
+    "signInToStart": "Connectez-vous pour commencer",
+    "add": "Ajouter"
+  },
+  "status": {
+    "done": "terminé",
+    "failed": "échoué",
+    "pending": "en attente",
+    "running": "en cours"
+  },
+  "run": {
+    "run": "▶ Exécuter",
+    "running": "en cours…",
+    "resume": "⟲ Reprendre",
+    "resumeTitle": "Relancer à partir de l'étape échouée, en réutilisant les sorties précédentes",
+    "doneCount": "{{done}}/{{total}} terminées",
+    "invalidJson": "Entrée JSON invalide",
+    "updatingForm": "mise à jour du formulaire…",
+    "makeFormTitle": "Générer un formulaire d'entrée à partir des champs du déclencheur",
+    "formLabel": "formulaire",
+    "makeForm": "créer le formulaire",
+    "required": "requis",
+    "select": "Sélectionner…",
+    "saveForHistory": "Enregistrez le workflow pour conserver un historique de ses exécutions.",
+    "noRuns": "Aucune exécution pour l'instant.",
+    "selectStepCode": "Sélectionnez une étape pour voir son code généré.",
+    "copy": "copier",
+    "emptyState": "Exécutez le workflow pour voir ici l'état de chaque étape.",
+    "fixWithAi": "🔧 corriger avec l'IA",
+    "steps_one": "{{count}} étape",
+    "steps_other": "{{count}} étapes",
+    "tab": {
+      "input": "entrée",
+      "state": "état",
+      "runs": "exécutions",
+      "code": "code",
+      "provider": "fournisseur"
+    },
+    "noProviders": "Ce workflow n'utilise aucun fournisseur."
+  },
+  "node": {
+    "selectStep": "Sélectionnez une étape pour voir ses détails, ses paramètres et son code généré.",
+    "transform": "transformation",
+    "effectful": "avec effet",
+    "lastRun": "Dernière exécution",
+    "inputLabel": "entrée",
+    "outputLabel": "sortie",
+    "errorLabel": "erreur",
+    "settings": "Paramètres",
+    "inputs": "Entrées",
+    "output": "Sortie",
+    "connections": "Connexions",
+    "safety": "Sécurité",
+    "optional": "facultatif",
+    "none": "aucun",
+    "danger": "danger",
+    "idempotency": "idempotence"
+  },
+  "connectionDialog": {
+    "notConnected": "non connecté",
+    "name": "Nom",
+    "nameThis": "Nommer cette connexion (facultatif)",
+    "nameHelp": "Une étiquette pour la distinguer des autres connexions, p. ex. \"travail\" ou \"test\".",
+    "connectedOn": "Connecté le {{date}}",
+    "disconnect": "Déconnecter",
+    "redirectInfo": "Vous serez redirigé vers {{name}} pour autoriser l'accès.",
+    "redirectInfoScope": "Vous serez redirigé vers {{name}} pour autoriser l'accès avec la portée {{scopes}}.",
+    "waitingAuth": "en attente d'autorisation…",
+    "connectWith": "Se connecter avec {{name}}",
+    "useDifferentApp": "Utiliser une autre application OAuth",
+    "addAnother": "Ajouter un autre compte",
+    "noOAuthApp": "Aucune application OAuth n'est configurée pour {{name}}. Enregistrez-en une (URL de redirection {{url}}), puis collez ses identifiants.",
+    "clientId": "ID client",
+    "clientSecret": "Secret client",
+    "authorizeUrl": "URL d'autorisation",
+    "tokenUrl": "URL du jeton",
+    "saveConnect": "Enregistrer et se connecter avec {{name}}",
+    "credentials": "Identifiants",
+    "required": "requis",
+    "connect": "Connecter",
+    "connecting": "connexion…",
+    "connectionFailed": "échec de la connexion"
+  },
+  "trigger": {
+    "title": "Déclencheur",
+    "subtitle": "comment ce workflow démarre",
+    "nextRun": "Prochaine exécution",
+    "ran": "Exécuté",
+    "failed": "Échoué",
+    "cronEveryDay": "Tous les jours {{time}}",
+    "endpoint": "Point de terminaison",
+    "webhookInfo": "Envoyez un POST ici ; le corps JSON devient la sortie du déclencheur.",
+    "saveFirst": "Enregistrez d'abord le workflow pour obtenir son URL de webhook.",
+    "applyHint": "Enregistrez le workflow pour appliquer ce déclencheur.",
+    "kind": {
+      "manual": "Manuel",
+      "webhook": "Webhook",
+      "schedule": "Planification",
+      "poll": "Sondage",
+      "event": "Événement"
+    },
+    "desc": {
+      "manual": "Exécuter manuellement depuis le panneau d'exécution.",
+      "webhook": "Exécuter lorsqu'un POST HTTP atteint une URL.",
+      "schedule": "Exécuter selon une planification cron.",
+      "poll": "Vérifier régulièrement un service pour de nouvelles données.",
+      "event": "Exécuter sur un événement d'une application connectée."
+    }
+  },
+  "language": {
+    "label": "Langue",
+    "en": "English",
+    "tr": "Türkçe",
+    "de": "Deutsch",
+    "fr": "Français",
+    "es": "Español"
+  }
+}

@@ -1,0 +1,241 @@
+{
+  "common": {
+    "save": "Speichern",
+    "saving": "wird gespeichert…",
+    "delete": "Löschen",
+    "loading": "wird geladen…",
+    "loadingPage": "Wird geladen…",
+    "pleaseWait": "Bitte warten…",
+    "soon": "bald",
+    "done": "Fertig"
+  },
+  "array": {
+    "empty": "Noch keine Einträge.",
+    "add": "Eintrag hinzufügen",
+    "count": "{{count}} Einträge"
+  },
+  "llm": {
+    "selectModel": "Modell wählen",
+    "pickToStart": "Wähle ein KI-Modell, um zu starten",
+    "keyUnchanged": "•••••• (unverändert)"
+  },
+  "auth": {
+    "welcomeBack": "Willkommen zurück",
+    "getSetUp": "Lass uns dich einrichten",
+    "signinSubtitle": "Melde dich an, um deine Workflows zu speichern und auszuführen.",
+    "signupSubtitle": "Erstelle ein Konto, um weiterzubauen.",
+    "name": "Name",
+    "email": "E-Mail",
+    "password": "Passwort",
+    "signIn": "Anmelden",
+    "signOut": "Abmelden",
+    "createAccount": "Konto erstellen",
+    "failed": "Authentifizierung fehlgeschlagen",
+    "toSignup": "Noch kein Konto? Registrieren",
+    "toSignin": "Schon ein Konto? Anmelden"
+  },
+  "header": {
+    "switchToLight": "Zu Hell wechseln",
+    "switchToDark": "Zu Dunkel wechseln",
+    "funcCount": "{{n}} Funktion",
+    "configureTrigger": "Trigger konfigurieren",
+    "connectionsNeeded_one": "{{count}} Verbindung benötigt",
+    "connectionsNeeded_other": "{{count}} Verbindungen benötigt"
+  },
+  "view": {
+    "story": "Story",
+    "pipeline": "Pipeline",
+    "graph": "Graph"
+  },
+  "panel": {
+    "chat": "Chat",
+    "history": "Verlauf",
+    "node": "Knoten"
+  },
+  "chat": {
+    "tokens": "{{n}} Tokens",
+    "newChat": "Neuer Chat",
+    "emptyTitle": "Erstelle einen Workflow in einfacher Sprache",
+    "emptySubtitle": "Beschreibe, was passieren soll. Ich verbinde Trigger und Schritte für dich.",
+    "placeholder": "Schreibe dem Builder…",
+    "thinking": "Denkt nach…",
+    "writing": "Schreibt…",
+    "working": "Arbeitet…",
+    "designingWorkflow": "Workflow wird entworfen",
+    "workflowReady": "Workflow bereit",
+    "workflowFailed": "Workflow-Erstellung fehlgeschlagen",
+    "stepsProgress": "{{done}} von {{total}} Schritten",
+    "thinkingLabel": "Denkt nach",
+    "verb": {
+      "design_workflow": "Workflow wird entworfen",
+      "author_func": "Schritt wird geschrieben",
+      "update_func": "Schritt wird aktualisiert",
+      "delete_func": "Schritt wird entfernt",
+      "wire": "Schritte werden verbunden",
+      "unwire": "Verbindung wird getrennt",
+      "create_provider": "Anbieter wird erstellt",
+      "search_providers": "Anbieter werden gesucht",
+      "repair_provider": "Anbieter wird repariert",
+      "list_connections": "Verbindungen werden geprüft",
+      "request_connection": "Verbindungseinrichtung wird geöffnet"
+    },
+    "example": {
+      "stripeSlack": "Wenn eine Stripe-Zahlung erfolgreich ist, sende eine Quittung an Slack",
+      "digest": "Fasse neue Anmeldungen zusammen und sende mir eine tägliche Übersicht per E-Mail",
+      "github": "Bei einem neuen GitHub-Issue eine Triage-Notiz an Discord posten"
+    }
+  },
+  "history": {
+    "newChat": "Neuer Chat",
+    "empty": "Noch keine Unterhaltungen."
+  },
+  "connections": {
+    "title": "Verbindungen",
+    "empty": "Noch keine Verbindungen.",
+    "connected": "verbunden",
+    "connect": "verbinden",
+    "noCode": "Kein Client-Code für diesen Anbieter.",
+    "disconnect": "trennen",
+    "needsConnection": "Verbindung erforderlich",
+    "addAccount": "Konto hinzufügen",
+    "useFirst": "Erstes verfügbares"
+  },
+  "pipeline": {
+    "describe": "Beschreibe eine Automatisierung im Chat, um eine Pipeline zu erstellen.",
+    "manualApi": "manuell / api"
+  },
+  "story": {
+    "title": "Dein Workflow, in einfacher Sprache",
+    "describe": "Beschreibe eine Automatisierung im Chat — sie erscheint hier als lesbare Schritte, die du von Anfang bis Ende verfolgen kannst.",
+    "via": "über {{provider}}",
+    "missing": "fehlt"
+  },
+  "workflows": {
+    "untitled": "Unbenannter Workflow",
+    "saved": "Gespeichert",
+    "newWorkflow": "Neuer Workflow",
+    "empty": "Noch keine gespeicherten Workflows.",
+    "meta": "{{n}} Funktionen · {{date}}"
+  },
+  "spaces": {
+    "title": "Bereiche",
+    "newSpace": "Neuer Bereich",
+    "spaceName": "Bereichsname",
+    "workspace": "Arbeitsbereich",
+    "signInToStart": "Anmelden, um zu starten",
+    "add": "Hinzufügen"
+  },
+  "status": {
+    "done": "fertig",
+    "failed": "fehlgeschlagen",
+    "pending": "ausstehend",
+    "running": "läuft"
+  },
+  "run": {
+    "run": "▶ Ausführen",
+    "running": "läuft…",
+    "resume": "⟲ Fortsetzen",
+    "resumeTitle": "Ab dem fehlgeschlagenen Schritt erneut ausführen, frühere Ausgaben wiederverwenden",
+    "doneCount": "{{done}}/{{total}} fertig",
+    "invalidJson": "Ungültige JSON-Eingabe",
+    "updatingForm": "Formular wird aktualisiert…",
+    "makeFormTitle": "Ein Eingabeformular aus den Trigger-Feldern generieren",
+    "formLabel": "Formular",
+    "makeForm": "Formular erstellen",
+    "required": "erforderlich",
+    "select": "Auswählen…",
+    "saveForHistory": "Speichere den Workflow, um einen Verlauf seiner Ausführungen zu behalten.",
+    "noRuns": "Noch keine Ausführungen.",
+    "selectStepCode": "Wähle einen Schritt, um seinen generierten Code zu sehen.",
+    "copy": "kopieren",
+    "emptyState": "Führe den Workflow aus, um hier den Status jedes Schritts zu sehen.",
+    "fixWithAi": "🔧 mit KI beheben",
+    "steps_one": "{{count}} Schritt",
+    "steps_other": "{{count}} Schritte",
+    "tab": {
+      "input": "Eingabe",
+      "state": "Status",
+      "runs": "Ausführungen",
+      "code": "Code",
+      "provider": "Anbieter"
+    },
+    "noProviders": "Dieser Workflow verwendet keine Anbieter."
+  },
+  "node": {
+    "selectStep": "Wähle einen Schritt, um seine Details, Einstellungen und den generierten Code zu sehen.",
+    "transform": "Transformation",
+    "effectful": "mit Effekt",
+    "lastRun": "Letzte Ausführung",
+    "inputLabel": "Eingabe",
+    "outputLabel": "Ausgabe",
+    "errorLabel": "Fehler",
+    "settings": "Einstellungen",
+    "inputs": "Eingaben",
+    "output": "Ausgabe",
+    "connections": "Verbindungen",
+    "safety": "Sicherheit",
+    "optional": "optional",
+    "none": "keine",
+    "danger": "Gefahr",
+    "idempotency": "Idempotenz"
+  },
+  "connectionDialog": {
+    "notConnected": "nicht verbunden",
+    "name": "Name",
+    "nameThis": "Diese Verbindung benennen (optional)",
+    "nameHelp": "Ein Label, um diese von anderen Verbindungen zu unterscheiden, z. B. \"Arbeit\" oder \"Test\".",
+    "connectedOn": "Verbunden am {{date}}",
+    "disconnect": "Trennen",
+    "redirectInfo": "Du wirst zu {{name}} weitergeleitet, um den Zugriff zu autorisieren.",
+    "redirectInfoScope": "Du wirst zu {{name}} weitergeleitet, um den Zugriff mit dem Scope {{scopes}} zu autorisieren.",
+    "waitingAuth": "warte auf Autorisierung…",
+    "connectWith": "Mit {{name}} verbinden",
+    "useDifferentApp": "Eine andere OAuth-App verwenden",
+    "addAnother": "Weiteres Konto hinzufügen",
+    "noOAuthApp": "Für {{name}} ist keine OAuth-App konfiguriert. Registriere eine (Redirect-URL {{url}}) und füge dann ihre Zugangsdaten ein.",
+    "clientId": "Client-ID",
+    "clientSecret": "Client-Secret",
+    "authorizeUrl": "Autorisierungs-URL",
+    "tokenUrl": "Token-URL",
+    "saveConnect": "Speichern & mit {{name}} verbinden",
+    "credentials": "Zugangsdaten",
+    "required": "erforderlich",
+    "connect": "Verbinden",
+    "connecting": "verbindet…",
+    "connectionFailed": "Verbindung fehlgeschlagen"
+  },
+  "trigger": {
+    "title": "Trigger",
+    "subtitle": "wie dieser Workflow startet",
+    "nextRun": "Nächste Ausführung",
+    "ran": "Ausgeführt",
+    "failed": "Fehlgeschlagen",
+    "cronEveryDay": "Täglich {{time}}",
+    "endpoint": "Endpunkt",
+    "webhookInfo": "Sende hier ein POST; der JSON-Body wird zur Trigger-Ausgabe.",
+    "saveFirst": "Speichere zuerst den Workflow, um seine Webhook-URL zu erhalten.",
+    "applyHint": "Speichere den Workflow, um diesen Trigger anzuwenden.",
+    "kind": {
+      "manual": "Manuell",
+      "webhook": "Webhook",
+      "schedule": "Zeitplan",
+      "poll": "Abfrage",
+      "event": "Ereignis"
+    },
+    "desc": {
+      "manual": "Manuell über das Run-Panel ausführen.",
+      "webhook": "Ausführen, wenn ein HTTP-POST eine URL erreicht.",
+      "schedule": "Nach einem Cron-Zeitplan ausführen.",
+      "poll": "Einen Dienst regelmäßig auf neue Daten prüfen.",
+      "event": "Bei einem Ereignis aus einer verbundenen App ausführen."
+    }
+  },
+  "language": {
+    "label": "Sprache",
+    "en": "English",
+    "tr": "Türkçe",
+    "de": "Deutsch",
+    "fr": "Français",
+    "es": "Español"
+  }
+}

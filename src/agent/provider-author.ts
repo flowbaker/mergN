@@ -1,5 +1,5 @@
 import { generateText, Output } from "ai";
-import { google } from "@ai-sdk/google";
+import { getModel } from "./model";
 import { z } from "zod";
 import type { ProviderDraft } from "../providers/registry";
 import { trace, type AgentMeta } from "../observability";
@@ -133,7 +133,7 @@ export async function repairProvider(
   meta?: AgentMeta,
 ): Promise<{ draft: ProviderDraft; changeNote: string }> {
   const { output } = await generateText({
-    model: google(process.env.GEMINI_MODEL ?? "gemini-2.5-flash"),
+    model: getModel(),
     output: Output.object({ schema: providerRepairZ }),
     system: REPAIR_SYSTEM,
     experimental_telemetry: trace("repair-provider", { ...meta, provider: draft.id }),
@@ -174,7 +174,7 @@ export async function authorProvider(
   meta?: AgentMeta,
 ): Promise<ProviderDraft> {
   const { output } = await generateText({
-    model: google(process.env.GEMINI_MODEL ?? "gemini-2.5-flash"),
+    model: getModel(),
     output: Output.object({ schema: providerDraftZ }),
     system: SYSTEM,
     experimental_telemetry: trace("author-provider", { ...meta, service }),

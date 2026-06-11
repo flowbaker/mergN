@@ -1,5 +1,5 @@
 import { generateText, Output } from "ai";
-import { google } from "@ai-sdk/google";
+import { getModel } from "./model";
 import { z } from "zod";
 import type { Registry } from "../providers/registry";
 import { authorProvider } from "./provider-author";
@@ -83,7 +83,10 @@ export const planZ = z.object({
         .describe(
           "what the step does, INCLUDING the values it needs and what it returns",
         ),
-      outputs: z.array(z.string()).describe("the step's output field names"),
+      outputs: z
+        .array(z.string())
+        .default([])
+        .describe("the step's output field names"),
       deps: z
         .array(
           z.object({
@@ -94,6 +97,7 @@ export const planZ = z.object({
               .describe("the upstream step's output field name"),
           }),
         )
+        .default([])
         .describe(
           "inputs that come from an UPSTREAM STEP's output. Inputs NOT listed here are taken from the user's trigger input automatically by the field name the body uses.",
         ),
@@ -121,7 +125,7 @@ export async function planWorkflow(
   meta?: AgentMeta,
 ): Promise<Plan> {
   const { output } = await generateText({
-    model: google(process.env.GEMINI_MODEL ?? "gemini-2.5-flash"),
+    model: getModel(),
     output: Output.object({ schema: planZ }),
     system: PLAN_SYSTEM,
     prompt: goal,
@@ -170,7 +174,7 @@ async function authorStepBody(
 ): Promise<z.infer<typeof stepBodyZ>> {
   const upstream = step.deps.map((d) => d.input);
   const { output } = await generateText({
-    model: google(process.env.GEMINI_MODEL ?? "gemini-2.5-flash"),
+    model: getModel(),
     output: Output.object({ schema: stepBodyZ }),
     system: BODY_SYSTEM,
     experimental_telemetry: trace("author-step-body", { ...meta, step: step.id }),

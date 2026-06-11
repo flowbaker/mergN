@@ -25,6 +25,7 @@ import type { Registry } from "../providers/registry";
 import type { Connections } from "./connections";
 import { RemoteSandboxRuntime } from "./remote-sandbox-runtime";
 import { LocalRuntime } from "./local-runtime";
+import { DockerRuntime } from "./docker-runtime";
 import { resolveEgressHost } from "./egress";
 
 export interface RunDeps {
@@ -198,13 +199,15 @@ export interface RemoteProviderCarrier {
 }
 
 export function createRuntime(): Runtime {
-  const isRemote = process.env.CODE_RUNTIME === "remote";
-  if (process.env.NODE_ENV === "production" && !isRemote) {
+  const kind = process.env.CODE_RUNTIME;
+  if (kind === "remote") return new RemoteSandboxRuntime();
+  if (kind === "docker") return new DockerRuntime();
+  if (process.env.NODE_ENV === "production") {
     throw new Error(
-      "refusing to execute code in-process in production: set CODE_RUNTIME=remote (sandboxed execution required)",
+      "refusing to execute code in-process in production: set CODE_RUNTIME=docker (run each step in a local container) or remote",
     );
   }
-  return isRemote ? new RemoteSandboxRuntime() : new LocalRuntime();
+  return new LocalRuntime();
 }
 
 export async function buildProviderCarrier(

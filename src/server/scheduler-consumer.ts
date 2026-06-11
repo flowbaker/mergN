@@ -26,6 +26,13 @@ export interface SchedulerConsumer {
   stop(): void;
 }
 
+export type RecordFailure = (
+  spaceId: string,
+  wf: SavedWorkflow,
+  trigger: string,
+  error: unknown,
+) => Promise<void>;
+
 export interface SchedulerConsumerDeps {
   nats: NatsCtx;
   streamName: string;
@@ -35,6 +42,7 @@ export interface SchedulerConsumerDeps {
   pollRunner: PollRunner;
   workflows: WorkflowStore;
   runSavedWorkflow: RunSavedWorkflow;
+  recordFailure: RecordFailure;
 }
 
 interface FiredPayload {
@@ -120,6 +128,7 @@ export function createSchedulerConsumer(deps: SchedulerConsumerDeps): SchedulerC
     pollRunner,
     workflows,
     runSavedWorkflow,
+    recordFailure,
   } = deps;
 
   let messages: { stop(): void } | null = null;
@@ -138,14 +147,21 @@ export function createSchedulerConsumer(deps: SchedulerConsumerDeps): SchedulerC
       return;
     }
 
-    await fireWorkflow(
-      { pollRunner, scheduleStore, runSavedWorkflow },
-      payload.spaceId,
-      wf,
-      job.jobId,
-      job.triggerType,
-      job.cursor,
-    );
+    try {
+      await fireWorkflow(
+        { pollRunner, scheduleStore, runSavedWorkflow },
+        payload.spaceId,
+        wf,
+        job.jobId,
+        job.triggerType,
+        job.cursor,
+      );
+    } catch (e) {
+      // surface background poll/schedule failures (e.g. a bad credential) as a
+      // failed run so the UI shows them; ack so the next interval tick retries
+      // instead of a redelivery storm.
+      await recordFailure(payload.spaceId, wf, job.triggerType, e);
+    }
     msg.ack();
   }
 

@@ -14,6 +14,11 @@
     "add": "Öğe ekle",
     "count": "{{count}} öğe"
   },
+  "llm": {
+    "selectModel": "Model seç",
+    "pickToStart": "Başlamak için bir AI modeli seç",
+    "keyUnchanged": "•••••• (değişmedi)"
+  },
   "auth": {
     "welcomeBack": "Tekrar hoş geldin",
     "getSetUp": "Hadi seni kaydedelim",
@@ -58,6 +63,7 @@
     "working": "Çalışıyor…",
     "designingWorkflow": "Akış tasarlanıyor",
     "workflowReady": "Akış hazır",
+    "workflowFailed": "Akış kurulamadı",
     "stepsProgress": "{{total}} adımdan {{done}} tanesi",
     "thinkingLabel": "Düşünüyor",
     "verb": {
@@ -203,6 +209,7 @@
     "subtitle": "bu akış nasıl başlar",
     "nextRun": "Sonraki",
     "ran": "Çalıştı",
+    "failed": "Hata",
     "cronEveryDay": "Her gün {{time}}",
     "endpoint": "Uç nokta",
     "webhookInfo": "Buraya bir POST gönder; JSON gövdesi tetikleyici çıktısı olur.",
@@ -226,6 +233,9 @@
   "language": {
     "label": "Dil",
     "en": "English",
-    "tr": "Türkçe"
+    "tr": "Türkçe",
+    "de": "Deutsch",
+    "fr": "Français",
+    "es": "Español"
   }
 }

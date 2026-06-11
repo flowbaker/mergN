@@ -59,18 +59,37 @@ export function useAuth(): AuthContextValue {
   return useContext(Ctx);
 }
 
+const LOCAL_USER: AuthUser = {
+  id: "local",
+  email: "local@localhost",
+  name: "Local",
+};
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [authDisabled, setAuthDisabled] = useState<boolean | null>(null);
+  useEffect(() => {
+    fetch("/api/config")
+      .then((r) => r.json())
+      .then((c: { authDisabled?: boolean }) => setAuthDisabled(!!c.authDisabled))
+      .catch(() => setAuthDisabled(false));
+  }, []);
+
   const { data: session, isPending } = useSession();
   const [cachedUser, setCachedUser] = useState<AuthUser | null>(readCachedUser);
 
   const resolvedUser = (session?.user as AuthUser | undefined) ?? null;
-  const user = isPending ? cachedUser : resolvedUser;
+  const user = authDisabled
+    ? LOCAL_USER
+    : isPending
+      ? cachedUser
+      : resolvedUser;
+  const pending = authDisabled === null || (!authDisabled && isPending);
 
   useEffect(() => {
-    if (isPending) return;
+    if (authDisabled || isPending) return;
     writeCachedUser(resolvedUser);
     setCachedUser(resolvedUser);
-  }, [isPending, resolvedUser]);
+  }, [authDisabled, isPending, resolvedUser]);
 
   const [open, setOpen] = useState(false);
   const [closing, setClosing] = useState(false);
@@ -136,7 +155,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     <Ctx.Provider
       value={{
         user,
-        pending: isPending,
+        pending,
         requireAuth,
         withAuth,
         signOut: doSignOut,

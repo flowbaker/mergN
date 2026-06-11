@@ -360,7 +360,7 @@ export interface RunDoc {
 export function useRunStream(
   workflowId: string | null,
   enabled: boolean,
-  onEvent?: () => void,
+  onEvent?: (status: "done" | "failed") => void,
 ) {
   const qc = useQueryClient();
   const { user } = useAuth();
@@ -381,9 +381,10 @@ export function useRunStream(
         for (;;) {
           const { value, done } = await reader.read();
           if (done) break;
-          if (decoder.decode(value).includes('"id"')) {
+          const text = decoder.decode(value);
+          if (text.includes('"id"')) {
             qc.invalidateQueries({ queryKey: ["runs", workflowId] });
-            cb.current?.();
+            cb.current?.(text.includes('"failed"') ? "failed" : "done");
           }
         }
       } catch {
@@ -392,6 +393,41 @@ export function useRunStream(
     })();
     return () => ctrl.abort();
   }, [workflowId, user, enabled, qc]);
+}
+
+export interface LlmSettings {
+  provider: string;
+  model: string;
+  baseURL: string;
+  hasApiKey: boolean;
+  configured: boolean;
+  locked: boolean;
+}
+
+export function saveLlmSettings(body: {
+  provider: string;
+  model?: string;
+  baseURL?: string;
+  apiKey?: string;
+}): Promise<{ ok: boolean }> {
+  return json("/api/settings/llm", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+export function useLlmSettings() {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["llm-settings"],
+    queryFn: () => json<LlmSettings>("/api/settings/llm"),
+    enabled: !!user,
+    // don't refetch when the window regains focus — you may have tabbed away to
+    // copy a key, and a refetch mid-edit churns the picker.
+    refetchOnWindowFocus: false,
+    staleTime: Infinity,
+  });
 }
 
 export function useRuns(workflowId: string | null) {

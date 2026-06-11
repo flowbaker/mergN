@@ -1,5 +1,5 @@
 import { generateText, Output } from "ai";
-import { google } from "@ai-sdk/google";
+import { getModel } from "./model";
 import { funcDraftZ, type FuncDraft } from "./schemas";
 import { trace, type AgentMeta } from "../observability";
 import type { Registry } from "../providers/registry";
@@ -44,7 +44,7 @@ export async function authorFunc(
     ? `This step uses the '${prov.id}' provider (scopes: ${prov.scopes.join(", ") || "none"}). Connection API: ${prov.apiDoc}`
     : "";
   const { output: object } = await generateText({
-    model: google(process.env.GEMINI_MODEL ?? "gemini-2.5-flash"),
+    model: getModel(),
     output: Output.object({ schema: funcDraftZ }),
     system: SYSTEM,
     prompt: [`Task: ${spec.intent}`, providerNote].join("\n"),
