@@ -2,7 +2,7 @@
 
 > The observability of n8n. The flexibility of AI agents.
 
-Mergn is an AI-native automation platform built by Quoll crew. checkout: https://quollhq.com/
+MergN is an AI-native automation platform built by Quoll crew. checkout: https://quollhq.com/
 
 It bridges the gap between traditional workflow automation tools like n8n and AI-powered coding environments such as Claude Code. Instead of manually wiring integrations and writing automation logic, you describe what you want in plain English and MergN generates the required workflow logic at runtime.
 
