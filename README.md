@@ -56,12 +56,14 @@ npm install
 cd web && npm install && cd ..
 ```
 
+By default native runs on local file storage with no extra services — fine for
+manual & webhook workflows. **But Scheduled / poll triggers needs NATS if you need these, continue below.**
+
 No `.env` needed to start — the AI model is set from the UI (gear icon). A
 `.env` is only for optional services below; create one with `cp .env.example .env`
 when you need it.
 
-By default native runs on local file storage with no extra services — fine for
-manual & webhook workflows. **Scheduled / poll triggers need NATS** (JetStream).
+ **Scheduled / poll triggers need NATS** (JetStream).
 Run it (port published so the host app can reach it):
 
 ```bash
