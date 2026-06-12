@@ -67,11 +67,11 @@ cd web && npm run dev   # frontend (Vite) — http://localhost:5173
 ```bash
 cd ~/Mergn # root the project directory
 ```
-# and
+#### and
 ```bash
 ./update.sh   
 ```
-# or: 
+#### or: 
 ```bash
 npm run update
 ```
