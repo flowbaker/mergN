@@ -81,7 +81,7 @@ docker run -d --name mergn-mongo -p 27017:27017 mongo:7
 
 `.env`: `STORE_DRIVER=mongo` and `MONGO_URL=mongodb://localhost:27017`
 
-Start (in separated two terminals):
+## Start Native (in separated two terminals):
 
 ```bash
 npm run server          # backend  -> http://localhost:8787
