@@ -73,7 +73,7 @@ docker run -d --name mergn-nats -p 4222:4222 nats:2.14-alpine -js
 
 and set in `.env`: `NATS_URL=nats://localhost:4222`
 
-Optional — a real database instead of file storage (Mongo):
+**Optional** — a real database instead of file storage (Mongo):
 
 ```bash
 docker run -d --name mergn-mongo -p 27017:27017 mongo:7
