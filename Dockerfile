@@ -16,5 +16,7 @@ RUN npm ci --omit=dev
 COPY tsconfig.json ./
 COPY src/ ./src/
 COPY --from=web /app/web/dist ./web/dist
+# stamp the build time so the app can tell self-hosters when a newer version exists
+RUN date -u +%Y-%m-%dT%H:%M:%SZ > /app/.build-time
 EXPOSE 8787
 CMD ["npm", "run", "start"]

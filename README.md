@@ -60,6 +60,34 @@ npm run server          # backend (loads .env) — http://localhost:8787
 cd web && npm run dev   # frontend (Vite) — http://localhost:5173
 ```
 
+## Updating
+
+On startup MergN checks for a newer version and prints it in the app log
+(`docker compose logs -f app`, or the `npm run server` output):
+
+```
+[update] ⬆ Update available — latest 1a2b3c4. To update:  ./update.sh
+[update] ✓ up to date (1a2b3c4)
+```
+
+**One command for both install paths** — run it from the repo root:
+
+```bash
+./update.sh          # or: npm run update
+```
+
+It pulls the latest source, then auto-detects your install and applies it:
+
+- **Docker** → pulls the latest prebuilt image and restarts (Docker shows the
+  download progress; no local build). Use `./update.sh --build` to build the
+  image from source instead.
+- **Native** (git clone + npm) → runs `npm install` (backend + web) and tells
+  you to restart.
+
+Prefer doing it by hand? Docker: `docker compose pull && docker compose up -d`.
+Native: `git pull && npm install`. The boot check is non-blocking and silent if
+offline — disable it with `UPDATE_CHECK=0`.
+
 ## Troubleshooting & Advanced Setup
 
 To use the AI you need a model. *Easiest:* open the app, and use the

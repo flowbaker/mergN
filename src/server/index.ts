@@ -47,6 +47,7 @@ import { authorInputForm } from "../agent/form-author";
 import { createConnections } from "./connections";
 import { createChatStore } from "./chat";
 import { createLogStore } from "./logs";
+import { checkForUpdates } from "./update-check";
 import { connectNats, initSchedulerStream, type NatsCtx } from "./nats";
 import { createScheduler, missingRequiredParams, type Scheduler } from "./scheduler";
 import { createSchedulerConsumer, fireWorkflow } from "./scheduler-consumer";
@@ -1385,6 +1386,7 @@ if (existsSync(join(process.cwd(), webDir))) {
 
 serve({ fetch: app.fetch, port: Number(process.env.PORT) || 8787 }, (info) => {
   console.log(`chat server on http://localhost:${info.port}`);
+  void checkForUpdates();
 });
 
 for (const signal of ["SIGTERM", "SIGINT"] as const) {
