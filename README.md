@@ -57,28 +57,18 @@ npm run server          # backend  -> http://localhost:8787
 cd web && npm run dev   # frontend -> http://localhost:5173
 ```
 
-## Optional: the `mergn` command
-
-A small CLI so you can run things from any directory. From the repo you can use
-`./mergn <cmd>` right away; to get a global `mergn`, install it once:
-
-```bash
-npm link                                       # native (uses npm)
-# or, for any install:
-sudo ln -sf "$PWD/mergn" /usr/local/bin/mergn
-```
-
-Commands: `mergn run`, `mergn update`, `mergn logs`, `mergn status`,
-`mergn restart`, `mergn down`.
-
 ## Updating
 
-On startup MergN logs whether a newer version exists. To update:
+On startup MergN logs whether a newer version exists. From the repo root run:
 
-- **Docker:** `git pull && docker compose up -d`
-- **Native:** `git pull && npm install && (cd web && npm install)`, then restart
+```bash
+./update.sh        # pulls the latest and applies it (Docker or Native — auto-detected)
+```
 
-(Or `mergn update` if you installed the CLI. Disable the check with `UPDATE_CHECK=0`.)
+By hand instead — **Docker:** `git pull && docker compose up -d` · **Native:**
+`git pull && npm install && (cd web && npm install)`, then restart.
+
+(Disable the boot check with `UPDATE_CHECK=0`.)
 
 ## Troubleshooting & Advanced Setup
 
