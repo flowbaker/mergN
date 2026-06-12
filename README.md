@@ -4,13 +4,13 @@
 
 MergN is an AI-native automation platform built by Quoll crew. checkout: https://quollhq.com/
 
-It bridges the gap between traditional workflow automation tools like n8n and AI-powered coding environments such as Claude Code. Instead of manually wiring integrations and writing automation logic, you describe what you want in plain English and MergN generates the required workflow logic at runtime.
+It bridges the gap between traditional workflow automation tools like n8n and AI-powered coding environments such as Claude Code. Instead of manually wiring integrations and writing automation logic, you describe what you want in plain language and MergN generates the required workflow logic at runtime.
 
 ### How Does It Work?
 
 MergN lets you create workflows using natural language.
 
-Like traditional automation platforms, workflows are represented as nodes and connections. However, unlike conventional tools, the underlying integration and execution code is generated dynamically by an LLM provider when the workflow runs.
+Like traditional automation platforms, workflows are represented as nodes and connections. However, unlike conventional tools, the underlying integration and execution code is generated dynamically by an LLM provider when the workflow builds.
 
 This allows workflows to adapt to a much broader range of use cases without requiring users to manually configure every step.
 
