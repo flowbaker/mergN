@@ -5,10 +5,19 @@ import { getModel, getLlmConfig } from "./model";
 // Transient failures from structured-output generation: the model returned
 // nothing parseable ("No object/output generated"), or a rate/5xx/network blip.
 // These are exactly the errors that succeed on a second attempt.
+// Hard ceiling on a single LLM call so a hung provider can't stall a build/chat
+// forever. On timeout the call aborts, surfaces as a transient error, and is
+// retried (or fails cleanly) instead of hanging the request.
+const CALL_TIMEOUT_MS = Number(process.env.LLM_CALL_TIMEOUT_MS ?? 90_000);
+
 function isTransient(e: unknown): boolean {
   const msg = e instanceof Error ? e.message : String(e);
-  return /no (object|output) generated|rate.?limit|429|5\d\d|overloaded|timeout|ECONN|fetch failed|terminated|socket/i.test(
-    msg,
+  const name = e instanceof Error ? e.name : "";
+  return (
+    /TimeoutError|AbortError/.test(name) ||
+    /no (object|output) generated|rate.?limit|429|5\d\d|overloaded|timeout|timed out|abort|ECONN|fetch failed|terminated|socket/i.test(
+      msg,
+    )
   );
 }
 
@@ -72,6 +81,7 @@ export async function genObject<S extends z.ZodTypeAny>(args: {
       system: args.system,
       prompt: args.prompt,
       experimental_telemetry: args.telemetry,
+      abortSignal: AbortSignal.timeout(CALL_TIMEOUT_MS),
     });
     return output as z.infer<S>;
   });

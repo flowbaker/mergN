@@ -392,6 +392,10 @@ function makeTools(
       const emit = () =>
         writer.write({ type: "data-design", id: progressId, data: { items } });
       emit();
+      // Keepalive: a single step (e.g. authoring the input form) is one slow LLM
+      // call with no bytes flowing; re-emit progress every 15s so the streaming
+      // connection doesn't idle out at the proxy/browser ("Load failed").
+      const heartbeat = setInterval(emit, 15_000);
       try {
         const plan = await planWorkflow(goal, meta);
         items[0].status = "done";
@@ -411,6 +415,8 @@ function makeTools(
         for (const it of items) if (it.status === "active") it.status = "failed";
         emit();
         throw e;
+      } finally {
+        clearInterval(heartbeat);
       }
     },
     toModelOutput: ({ output }) => {
