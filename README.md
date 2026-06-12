@@ -8,7 +8,7 @@ It bridges the gap between traditional workflow automation tools like n8n and AI
 
 ### How Does It Work?
 
-Mergn lets you create workflows using natural language.
+MergN lets you create workflows using natural language.
 
 Like traditional automation platforms, workflows are represented as nodes and connections. However, unlike conventional tools, the underlying integration and execution code is generated dynamically by an LLM provider when the workflow runs.
 
