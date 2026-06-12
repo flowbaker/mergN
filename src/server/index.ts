@@ -69,6 +69,7 @@ const SYSTEM = [
   "- Look at the step's resolved input. If it is empty ({}) or missing the field the error is about (e.g. the error says 'amount required' and the resolved input has no amount), then the step is NOT receiving its data. That is a FLOW problem — a missing input declaration on the func, or a missing wire / missing trigger value — NOT the provider. In that case do NOT call repair_provider. Tell the user clearly that the problem is in the flow, point at the missing input, and suggest the fix (declare the input on the step, or wire it / add it to the trigger input).",
   "- Only if the resolved input clearly contains the data but the provider still rejects it, call repair_provider (with provider id, error, call site, sample input) and say what you fixed.",
   "CONNECTIONS (credentials/secrets) are separate from providers: a provider is the code that calls a service, a connection is the user's stored credential for it. To answer whether the user has a credential for a service (e.g. 'do I have Slack connected?'), call list_connections — it returns metadata only, never the secret value. When the user wants to connect a service, or a workflow needs a provider that has no connection yet, call request_connection with the provider id to open the secure setup dialog where the user enters the secret themselves. NEVER ask the user to type or paste an API key, token, password, or any secret into the chat — you must not handle secret values; always route them through request_connection.",
+  "If a tool result contains a `warning` field, you MUST surface it to the user in your reply (e.g. the scheduler/NATS warning for scheduled or poll workflows).",
   "Keep replies short. After building, briefly summarize the steps and how they connect.",
 ].join("\n");
 
@@ -425,6 +426,12 @@ function makeTools(
         }, meta);
         for (const it of items) it.status = "done";
         emit();
+        const needsScheduler =
+          result.trigger?.kind === "schedule" || result.trigger?.kind === "poll";
+        if (needsScheduler && !scheduler) {
+          (result as { schedulerWarning?: string }).schedulerWarning =
+            "NATS is not running on this server, so this scheduled/poll workflow will NOT run automatically. Tell the user clearly: start NATS (JetStream) and set NATS_URL, e.g. `docker run -d --name mergn-nats -p 4222:4222 nats:2.14-alpine -js` then set NATS_URL=nats://localhost:4222 and restart.";
+        }
         return result;
       } catch (e) {
         console.error("design_workflow failed:", e);
@@ -449,6 +456,7 @@ function makeTools(
         wires: { from: string; fromOutput: string; to: string; toInput: string }[];
         trigger: { kind: string };
         inputForm?: { fields: { name: string }[] } | null;
+        schedulerWarning?: string;
       };
       return {
         type: "json",
@@ -460,6 +468,7 @@ function makeTools(
           inputForm: r.inputForm
             ? { fields: r.inputForm.fields.map((f) => f.name) }
             : null,
+          ...(r.schedulerWarning ? { warning: r.schedulerWarning } : {}),
         },
       };
     },
@@ -1385,7 +1394,8 @@ if (existsSync(join(process.cwd(), webDir))) {
 }
 
 serve({ fetch: app.fetch, port: Number(process.env.PORT) || 8787 }, (info) => {
-  console.log(`chat server on http://localhost:${info.port}`);
+  const url = process.env.APP_URL?.trim() || `http://localhost:${info.port}`;
+  console.log(`\n  ✔ MergN is running → ${url}\n`);
   void checkForUpdates();
 });
 
