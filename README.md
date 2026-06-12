@@ -65,7 +65,7 @@ cd web && npm run dev   # frontend (Vite) — http://localhost:5173
 **One command for both Docker and Native Builds** 
 
 ```bash
-cd ~/Mergn # root the project directory
+cd ~/MergN # root the project directory
 ```
 #### and
 ```bash
