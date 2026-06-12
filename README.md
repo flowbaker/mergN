@@ -1,3 +1,34 @@
+# mergN 
+
+> The observability of n8n. The flexibility of AI agents.
+
+Mergn is an AI-native automation platform built by Quoll LLC.
+
+It bridges the gap between traditional workflow automation tools like n8n and AI-powered coding environments such as Claude Code. Instead of manually wiring integrations and writing automation logic, you describe what you want in plain English and Mergn generates the required workflow logic at runtime.
+
+### How Does It Work?
+
+Mergn lets you create workflows using natural language.
+
+Like traditional automation platforms, workflows are represented as nodes and connections. However, unlike conventional tools, the underlying integration and execution code is generated dynamically by an LLM provider when the workflow runs.
+
+This allows workflows to adapt to a much broader range of use cases without requiring users to manually configure every step.
+
+### Why Not Just Use AI Directly?
+
+You can already build automations with AI-assisted coding tools. The challenge is visibility.
+
+Most AI-generated automation solutions produce code, but they do not provide a clear way to monitor, inspect, log, and understand what is happening inside a workflow—especially for non-technical users.
+
+Mergn combines the flexibility of AI-generated logic with the observability of traditional workflow platforms. Every workflow remains structured, traceable, and monitorable.
+
+### Who Is It For?
+
+Non-technical users can build and operate automations without writing code while still maintaining visibility into how their workflows behave.
+
+Developers get the power of AI-generated workflow logic combined with a visual interface for monitoring, debugging, and managing complex automation systems.
+
+
 ## Setup and Start with Docker (Recommended)
 
 Clone, run — Mongo, NATS and the Docker step-runner are all wired into compose
