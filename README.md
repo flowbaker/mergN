@@ -56,7 +56,7 @@ npm install
 cd web && npm install && cd ..
 ```
 
-By default, Native uses local file storage and needs no extra services. This is enough for manual and webhook workflows. If so, go to **Start Native**.
+By default, Native uses local file storage and needs no extra services. This is enough for manual and webhook workflows. If so, proceed to **Start Native** section.
 
 **BUT Scheduled and polling triggers require NATS.** If you need them, continue below.
 
