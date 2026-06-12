@@ -46,7 +46,7 @@ Open **http://localhost:8787**. Logs: `docker compose logs -f app` · Stop: `doc
 
 **Update:** `git pull && docker compose up -d` — pulls the latest image and restarts.
 
-## Setup Native (Node)
+## Setup Native
 
 **Requires:** Node 22+ (and Docker only if you want NATS/Mongo below).
 
@@ -78,12 +78,15 @@ docker run -d --name mergn-mongo -p 27017:27017 mongo:7
 
 `.env`: `STORE_DRIVER=mongo` and `MONGO_URL=mongodb://localhost:27017`
 
-Start (in two terminals):
+Start (in separated two terminals):
 
 ```bash
 npm run server          # backend  -> http://localhost:8787
+```
+```bash
 cd web && npm run dev   # frontend -> http://localhost:5173
 ```
+
 
 **Update:** `git pull && npm install && (cd web && npm install)`, then restart.
 
