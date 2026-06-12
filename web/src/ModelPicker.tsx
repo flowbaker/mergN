@@ -17,6 +17,7 @@ import {
   type LlmSettings,
   type LlmProbe,
 } from "./queries";
+import { useAuth } from "./authContext";
 
 const PROVIDERS = [
   { value: "google", label: "Google (Gemini)" },
@@ -181,6 +182,7 @@ const EMPTY: LlmSettings = {
 export function ModelPicker() {
   const { t } = useTranslation();
   const qc = useQueryClient();
+  const { user } = useAuth();
   const { data } = useLlmSettings();
   const [open, setOpen] = useState(false);
   const autoOpened = useRef(false);
@@ -203,6 +205,10 @@ export function ModelPicker() {
     }
   }, [data]);
 
+  // Anonymous (logged-out) view in managed deployments: don't prompt to pick a
+  // model — the user must sign in first. In self-host (DISABLE_AUTH) the auth
+  // context synthesizes a LOCAL_USER, so the picker still renders there.
+  if (!user) return null;
   if (data?.locked) return null;
 
   const configured = !!data?.configured;
