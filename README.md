@@ -73,10 +73,9 @@ Go to official nats documentation if you want to install another way.
 
 https://docs.nats.io/running-a-nats-service/introduction/installation
 
+**Install Mongo Via Docker (Optional)** 
 
 Storage defaults to local files. Optional — use Mongo instead.
-
-**Install Mongo Via Docker** 
 
 ```bash
 docker run -d --name mergn-mongo -p 27017:27017 mongo:7
