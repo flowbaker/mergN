@@ -240,6 +240,12 @@ const CHAT_GLOBAL_LIMIT: RateLimitRule = {
 };
 const HOOK_LIMIT: RateLimitRule = { limit: 60, windowMs: 60_000 };
 
+// Hard ceiling on the tokens a SINGLE chat prompt may spend across its whole
+// agentic loop (all tool steps combined). The loop stops as soon as the
+// accumulated step usage crosses this, so one prompt can't burn an unbounded
+// amount. Env-tunable; note a workflow build needs a lot of headroom.
+const PROMPT_TOKEN_CAP = Number(process.env.PROMPT_TOKEN_CAP ?? "20000");
+
 async function runSavedWorkflow(
   spaceId: string,
   wf: {
@@ -957,7 +963,15 @@ app.post("/api/chat", async (c) => {
         model: getModel(),
         system,
         messages: modelMessages,
-        stopWhen: stepCountIs(20),
+        stopWhen: [
+          stepCountIs(20),
+          // stop the multi-step loop once this prompt's cumulative token usage
+          // crosses the per-prompt cap (bounds a runaway prompt)
+          ({ steps }) =>
+            steps.reduce((sum, s) => sum + (s.usage?.totalTokens ?? 0), 0) >=
+            PROMPT_TOKEN_CAP,
+        ],
+        maxOutputTokens: PROMPT_TOKEN_CAP,
         tools: withResultLimits(makeTools(spaceId, writer, sessionId)),
         providerOptions: {
           google: { thinkingConfig: { includeThoughts: true } },
