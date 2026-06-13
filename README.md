@@ -44,7 +44,11 @@ docker compose up -d        # starts in the background -> http://localhost:8787
 
 Open **http://localhost:8787**. Logs: `docker compose logs -f app` · Stop: `docker compose down`
 
-**Update:** `git pull && docker compose up -d` — pulls the latest image and restarts.
+**Update:** 
+```bash
+git pull && docker compose up -d
+``` 
+— pulls the latest image and restarts.
 
 ## Setup Native
 
