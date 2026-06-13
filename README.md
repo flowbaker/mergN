@@ -85,7 +85,7 @@ docker run -d --name mergn-mongo -p 27017:27017 mongo:7
 # in .env:  STORE_DRIVER=mongo   MONGO_URL=mongodb://localhost:27017
 ```
 
-**OR** 
+***OR*** 
 
 Go to official mongo documentation if you want to install another way. 
 
