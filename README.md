@@ -91,6 +91,8 @@ Go to official mongo documentation if you want to install another way.
 
 https://www.mongodb.com/docs/manual/installation/
 
+----------------------------------------------------
+
 ## Start Native (in separated two terminals):
 
 ```bash
