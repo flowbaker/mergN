@@ -60,6 +60,12 @@
     "logs": "Registros",
     "files": "Archivos"
   },
+  "logsPanel": {
+    "refresh": "Actualizar",
+    "clear": "Limpiar",
+    "empty": "Aún no hay registros",
+    "emptyHint": "Los errores de build, ejecución y conexión aparecen aquí."
+  },
   "chat": {
     "tokens": "{{n}} tokens",
     "newChat": "Nuevo chat",

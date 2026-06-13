@@ -60,6 +60,12 @@
     "logs": "Journaux",
     "files": "Fichiers"
   },
+  "logsPanel": {
+    "refresh": "Actualiser",
+    "clear": "Effacer",
+    "empty": "Aucun journal pour l'instant",
+    "emptyHint": "Les erreurs de build, d'exécution et de connexion s'affichent ici."
+  },
   "chat": {
     "tokens": "{{n}} jetons",
     "newChat": "Nouveau chat",

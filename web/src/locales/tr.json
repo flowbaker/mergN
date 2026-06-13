@@ -60,6 +60,12 @@
     "logs": "Loglar",
     "files": "Dosyalar"
   },
+  "logsPanel": {
+    "refresh": "Yenile",
+    "clear": "Temizle",
+    "empty": "Henüz log yok",
+    "emptyHint": "Build, çalıştırma ve bağlantı hataları burada görünür."
+  },
   "chat": {
     "tokens": "{{n}} token",
     "newChat": "Yeni sohbet",

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, AlertTriangle, Info, Trash2, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -64,6 +65,7 @@ function Row({ e }: { e: LogEntry }) {
 }
 
 export function LogsPanel({ active }: { active: boolean }) {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const { data, isLoading, refetch, isFetching } = useLogs(active);
   const logs = data ?? [];
@@ -77,13 +79,13 @@ export function LogsPanel({ active }: { active: boolean }) {
   return (
     <div className="flex h-full w-full flex-col">
       <div className="flex shrink-0 items-center gap-2 border-b border-border/30 px-3 py-2">
-        <span className="text-xs font-medium text-foreground">Loglar</span>
+        <span className="text-xs font-medium text-foreground">{t("panel.logs")}</span>
         <span className="text-[11px] text-muted-foreground">{logs.length}</span>
         <div className="ml-auto flex items-center gap-1">
           <button
             type="button"
             onClick={() => refetch()}
-            title="Yenile"
+            title={t("logsPanel.refresh")}
             className="rounded p-1 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
           >
             <RefreshCw className={cn("size-3.5", isFetching && "animate-spin")} />
@@ -91,7 +93,7 @@ export function LogsPanel({ active }: { active: boolean }) {
           <button
             type="button"
             onClick={onClear}
-            title="Temizle"
+            title={t("logsPanel.clear")}
             disabled={!logs.length}
             className="rounded p-1 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-40"
           >
@@ -101,13 +103,13 @@ export function LogsPanel({ active }: { active: boolean }) {
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto">
         {isLoading ? (
-          <p className="px-3 py-4 text-xs text-muted-foreground">Yükleniyor…</p>
+          <p className="px-3 py-4 text-xs text-muted-foreground">{t("common.loading")}</p>
         ) : logs.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-1 px-6 text-center">
             <Info className="size-5 text-muted-foreground/50" />
-            <p className="text-xs text-muted-foreground">Henüz log yok</p>
+            <p className="text-xs text-muted-foreground">{t("logsPanel.empty")}</p>
             <p className="text-[11px] text-muted-foreground/70">
-              Build, çalıştırma ve bağlantı hataları burada görünür.
+              {t("logsPanel.emptyHint")}
             </p>
           </div>
         ) : (

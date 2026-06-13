@@ -60,6 +60,12 @@
     "logs": "Logs",
     "files": "Files"
   },
+  "logsPanel": {
+    "refresh": "Refresh",
+    "clear": "Clear",
+    "empty": "No logs yet",
+    "emptyHint": "Build, run, and connection errors show up here."
+  },
   "chat": {
     "tokens": "{{n}} tokens",
     "newChat": "New chat",
