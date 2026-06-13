@@ -123,7 +123,7 @@ git pull && npm install && (cd web && npm install)
 
 Then restart the application.
 
-To disable update checks on startup, set this on .env:
+To disable update checks on startup, **set this on .env**:
 
 ```bash
 UPDATE_CHECK=0
