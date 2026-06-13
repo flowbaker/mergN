@@ -1,6 +1,12 @@
 import { useEffect, useState } from "react";
 import { ShieldCheck, Loader2, Check, X } from "lucide-react";
-import { cn } from "@/lib/utils";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   getWebhookAuth,
   setWebhookAuth,
@@ -91,20 +97,27 @@ export function WebhookSecurity({ workflowId }: { workflowId: string }) {
         Require callers to authenticate. Unverified requests are rejected (401).
       </p>
 
-      <select
+      <Select
         value={type}
-        onChange={(e) => {
-          setType(e.target.value as WebhookAuthType);
+        onValueChange={(v) => {
+          setType(v as WebhookAuthType);
           setTest(null);
         }}
-        className={field}
       >
-        {METHODS.map((m) => (
-          <option key={m.value} value={m.value}>
-            {m.label}
-          </option>
-        ))}
-      </select>
+        <SelectTrigger
+          size="sm"
+          className="w-full bg-background-subtle text-xs"
+        >
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent position="popper">
+          {METHODS.map((m) => (
+            <SelectItem key={m.value} value={m.value} className="text-xs">
+              {m.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
 
       {type === "basic" && (
         <div className="flex gap-2">

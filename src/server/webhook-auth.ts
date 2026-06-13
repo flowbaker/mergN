@@ -58,7 +58,13 @@ function verifyConfig(
       // per-provider preset: a plain hex/base64 signature, a `sha256=…` prefix
       // (GitHub), or a compound `t=…,v1=…` header (Stripe). Tries signing both
       // the raw body and `timestamp.body`, in hex and base64. Any match passes.
-      const names = header ? [header] : COMMON_SIG_HEADERS;
+      // Try the named header first, then the common ones — so a wrong/guessed
+      // header (e.g. "x-signature" for a Stripe webhook that actually sends
+      // "stripe-signature") still verifies. Trying more headers can't help a
+      // forger; they still need the secret.
+      const names = header
+        ? [header, ...COMMON_SIG_HEADERS.filter((n) => n !== header)]
+        : COMMON_SIG_HEADERS;
       for (const name of names) {
         const raw = h(name);
         if (!raw) continue;
