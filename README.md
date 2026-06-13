@@ -68,7 +68,7 @@ cp .env.example .env
 # in .env:  NATS_URL=nats://localhost:4222
 ```
 
-**OR** 
+**or** 
 
 Go to official nats documentation if you want to install another way. 
 
@@ -85,7 +85,7 @@ docker run -d --name mergn-mongo -p 27017:27017 mongo:7
 # in .env:  STORE_DRIVER=mongo   MONGO_URL=mongodb://localhost:27017
 ```
 
-***OR*** 
+**or** 
 
 Go to official mongo documentation if you want to install another way. 
 
