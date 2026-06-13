@@ -78,5 +78,10 @@ export function planStripePriceId(plan: Plan): string | undefined {
 }
 
 export function planForStripePriceId(priceId: string): Plan | undefined {
+  // A cheap test price can be mapped to Pro (e.g. a $0.10 "Test" product used to
+  // exercise the upgrade flow) via STRIPE_PRICE_PRO_TEST.
+  const proTest = process.env.STRIPE_PRICE_PRO_TEST;
+  if (proTest && priceId === proTest)
+    return PLANS.find((p) => p.slug === "pro");
   return PLANS.find((p) => planStripePriceId(p) === priceId);
 }
