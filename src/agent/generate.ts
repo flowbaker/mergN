@@ -1,6 +1,7 @@
 import { generateText, Output } from "ai";
 import { z } from "zod";
 import { getModel, getLlmConfig } from "./model";
+import { recordTokens } from "../store/usage-cap";
 
 // Transient failures from structured-output generation: the model returned
 // nothing parseable ("No object/output generated"), or a rate/5xx/network blip.
@@ -75,7 +76,7 @@ export async function genObject<S extends z.ZodTypeAny>(args: {
   telemetry?: Telemetry;
 }): Promise<z.infer<S>> {
   return withRetry(async () => {
-    const { output } = await generateText({
+    const { output, usage } = await generateText({
       model: getModel(),
       output: Output.object({ schema: args.schema }),
       system: args.system,
@@ -83,6 +84,7 @@ export async function genObject<S extends z.ZodTypeAny>(args: {
       experimental_telemetry: args.telemetry,
       abortSignal: AbortSignal.timeout(CALL_TIMEOUT_MS),
     });
+    void recordTokens(usage?.totalTokens ?? 0);
     return output as z.infer<S>;
   });
 }

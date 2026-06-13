@@ -39,6 +39,11 @@ import { emitRun, onRun } from "./run-events";
 import { createRegistry, publicAuth } from "../providers/registry";
 import { assertSpace, type DocStore } from "../store/docstore";
 import { createStorage } from "../store/factory";
+import {
+  initUsageCap,
+  recordTokens,
+  usageCapExceeded,
+} from "../store/usage-cap";
 import { authorProvider, repairProvider } from "../agent/provider-author";
 import { designWorkflow, planWorkflow } from "../agent/workflow-designer";
 import { reconcileWiring } from "../agent/wiring-repair";
@@ -187,6 +192,7 @@ function withResultLimits(tools: ToolSet): ToolSet {
 }
 
 const { store, vault } = createStorage();
+initUsageCap(store);
 const registry = createRegistry(store);
 const oauth = createOAuth({ store, vault, registry });
 const connections = createConnections({ store, vault, oauth });
@@ -848,6 +854,17 @@ app.post("/api/chat", async (c) => {
     );
   }
 
+  if (await usageCapExceeded()) {
+    return c.json(
+      {
+        error: "usage_cap",
+        message:
+          "The AI usage limit for this deployment has been reached. Please try again later.",
+      },
+      402,
+    );
+  }
+
   const message = clampUserMessage(rawMessage);
   const previous =
     (await chats.getConversation(spaceId, userId, conversationId))?.messages ??
@@ -880,7 +897,8 @@ app.post("/api/chat", async (c) => {
           google: { thinkingConfig: { includeThoughts: true } },
         },
         experimental_telemetry: trace("builder-chat", { spaceId, sessionId }),
-        onFinish: () => {
+        onFinish: (event) => {
+          void recordTokens(event.totalUsage?.totalTokens ?? 0);
           void flushTraces();
         },
       });
