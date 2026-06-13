@@ -44,7 +44,7 @@ docker compose up -d        # starts in the background -> http://localhost:8787
 
 Open **http://localhost:8787**. Logs: `docker compose logs -f app` · Stop: `docker compose down`
 
-**Update:** 
+**Update (Anytime You Want):** 
 ```bash
 git pull && docker compose up -d
 ``` 
@@ -108,7 +108,7 @@ cd ~/MergN
 cd web && npm run dev   # frontend -> http://localhost:5173
 ```
 
-**Update Native:** 
+**Update Native (Anytime You Want):** 
 ```bash
 cd ~/MergN 
 git pull && npm install && (cd web && npm install)
