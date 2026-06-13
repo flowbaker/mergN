@@ -206,7 +206,9 @@
     "required": "gerekli",
     "connect": "Bağlan",
     "connecting": "bağlanıyor…",
-    "connectionFailed": "bağlantı başarısız"
+    "connectionFailed": "bağlantı başarısız",
+    "updateCredentials": "Bilgileri güncelle",
+    "unchanged": "Boş bırakırsan mevcut değer korunur"
   },
   "trigger": {
     "title": "Tetikleyici",

@@ -55,7 +55,7 @@ export interface Connections {
   updateConnection(
     spaceId: string,
     id: string,
-    patch: { account?: string },
+    patch: { account?: string; cred?: Record<string, string> },
   ): Promise<ConnectionMeta>;
   deleteConnection(spaceId: string, id: string): Promise<void>;
   getAccessToken(
@@ -148,8 +148,42 @@ export function createConnections(deps: {
         | ConnectionDoc
         | null;
       if (!doc) throw new Error("connection not found");
-      const account = patch.account?.trim() || undefined;
-      const next: ConnectionDoc = { ...doc, account };
+      const next: ConnectionDoc = { ...doc };
+      if (patch.account !== undefined)
+        next.account = patch.account.trim() || undefined;
+      // Rotate the stored credential (API-key connections only). Merge the
+      // provided fields onto the existing ones so a partial update (e.g. just a
+      // new bot token) doesn't drop the other fields, then write a fresh vault
+      // entry and drop the old one.
+      if (patch.cred && doc.kind === "apiKey") {
+        const provided = Object.fromEntries(
+          Object.entries(patch.cred)
+            .map(([k, v]) => [k, String(v ?? "").trim()] as const)
+            .filter(([, v]) => v),
+        );
+        if (Object.keys(provided).length) {
+          let existing: Record<string, string> = {};
+          if (doc.vaultRef) {
+            const raw = await vault.get(spaceId, doc.vaultRef).catch(() => null);
+            if (raw) {
+              try {
+                const parsed = JSON.parse(raw);
+                if (parsed && typeof parsed === "object" && !Array.isArray(parsed))
+                  existing = parsed as Record<string, string>;
+              } catch {
+                void 0;
+              }
+            }
+          }
+          const newRef = await vault.put(
+            spaceId,
+            JSON.stringify({ ...existing, ...provided }),
+          );
+          if (doc.vaultRef && doc.vaultRef !== newRef)
+            await vault.remove(spaceId, doc.vaultRef).catch(() => {});
+          next.vaultRef = newRef;
+        }
+      }
       await store.put(
         spaceId,
         COLLECTION,

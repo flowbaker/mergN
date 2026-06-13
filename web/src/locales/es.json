@@ -206,7 +206,9 @@
     "required": "obligatorio",
     "connect": "Conectar",
     "connecting": "conectando…",
-    "connectionFailed": "error de conexión"
+    "connectionFailed": "error de conexión",
+    "updateCredentials": "Actualizar credenciales",
+    "unchanged": "Déjalo en blanco para conservar el actual"
   },
   "trigger": {
     "title": "Disparador",

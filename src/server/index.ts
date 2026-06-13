@@ -1376,10 +1376,14 @@ app.post("/api/connections", async (c) => {
 });
 
 app.patch("/api/connections/:id", async (c) => {
-  const body = await c.req.json<{ account?: string }>();
+  const body = await c.req.json<{
+    account?: string;
+    cred?: Record<string, string>;
+  }>();
   return c.json(
     await connections.updateConnection(c.get("spaceId"), c.req.param("id"), {
       account: body.account,
+      cred: body.cred,
     }),
   );
 });

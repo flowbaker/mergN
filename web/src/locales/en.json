@@ -206,7 +206,9 @@
     "required": "required",
     "connect": "Connect",
     "connecting": "connecting…",
-    "connectionFailed": "connection failed"
+    "connectionFailed": "connection failed",
+    "updateCredentials": "Update credentials",
+    "unchanged": "Leave blank to keep current"
   },
   "trigger": {
     "title": "Trigger",

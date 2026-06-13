@@ -206,7 +206,9 @@
     "required": "erforderlich",
     "connect": "Verbinden",
     "connecting": "verbindet…",
-    "connectionFailed": "Verbindung fehlgeschlagen"
+    "connectionFailed": "Verbindung fehlgeschlagen",
+    "updateCredentials": "Zugangsdaten aktualisieren",
+    "unchanged": "Leer lassen, um den aktuellen Wert zu behalten"
   },
   "trigger": {
     "title": "Trigger",

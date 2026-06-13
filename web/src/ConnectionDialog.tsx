@@ -281,8 +281,10 @@ export function ConnectionDialog({
                   onClick={() =>
                     update.mutate(
                       {
+                        // always send a defined string so clearing the name works
+                        // (the backend only touches account when it's present)
                         id: resolved.id,
-                        account: nameDraft.trim() || undefined,
+                        account: nameDraft.trim(),
                       },
                       { onSuccess: (m) => setSavedName(m.account ?? "") },
                     )
@@ -292,6 +294,53 @@ export function ConnectionDialog({
                 </Button>
               </div>
             </div>
+            {!isOAuth && fields.length > 0 && (
+              <div className="space-y-2 rounded-lg border border-border/40 p-2.5">
+                <Divider label={t("connectionDialog.credentials")} />
+                {fields.map((f) => (
+                  <div key={f.name} className="space-y-1">
+                    <label className="text-xs font-medium">{f.label}</label>
+                    <Input
+                      value={cred[f.name] ?? ""}
+                      onChange={(e) =>
+                        setCred((c) => ({ ...c, [f.name]: e.target.value }))
+                      }
+                      type={
+                        f.type === "number"
+                          ? "number"
+                          : f.type === "text"
+                            ? "text"
+                            : "password"
+                      }
+                      placeholder={t("connectionDialog.unchanged")}
+                    />
+                  </div>
+                ))}
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  disabled={
+                    update.isPending ||
+                    !Object.values(cred).some((v) => (v ?? "").trim())
+                  }
+                  onClick={() => {
+                    const trimmed: Record<string, string> = {};
+                    for (const f of fields) {
+                      const v = (cred[f.name] ?? "").trim();
+                      if (v) trimmed[f.name] = v;
+                    }
+                    update.mutate(
+                      { id: resolved.id, cred: trimmed },
+                      { onSuccess: () => setCred({}) },
+                    );
+                  }}
+                >
+                  {update.isPending
+                    ? "…"
+                    : t("connectionDialog.updateCredentials")}
+                </Button>
+              </div>
+            )}
             <div className="text-xs text-muted-foreground">
               {t("connectionDialog.connectedOn", {
                 date: new Date(resolved.createdAt).toLocaleDateString(

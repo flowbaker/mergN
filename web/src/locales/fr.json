@@ -206,7 +206,9 @@
     "required": "requis",
     "connect": "Connecter",
     "connecting": "connexion…",
-    "connectionFailed": "échec de la connexion"
+    "connectionFailed": "échec de la connexion",
+    "updateCredentials": "Mettre à jour les identifiants",
+    "unchanged": "Laisser vide pour conserver la valeur actuelle"
   },
   "trigger": {
     "title": "Déclencheur",
