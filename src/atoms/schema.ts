@@ -4,6 +4,7 @@ export type Schema =
   | { type: 'boolean' }
   | { type: 'object'; properties?: Record<string, Schema>; required?: string[] }
   | { type: 'array'; items?: Schema }
+  | { type: 'file' }
   | { type: 'any' }
 
 export interface UiHint {

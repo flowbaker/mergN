@@ -51,7 +51,8 @@
     "chat": "Chat",
     "history": "Historial",
     "node": "Nodo",
-    "logs": "Registros"
+    "logs": "Registros",
+    "files": "Archivos"
   },
   "chat": {
     "tokens": "{{n}} tokens",
@@ -160,7 +161,9 @@
       "code": "código",
       "provider": "proveedor"
     },
-    "noProviders": "Este flujo de trabajo no usa proveedores."
+    "noProviders": "Este flujo de trabajo no usa proveedores.",
+    "pickFile": "Elegir archivo…",
+    "noFiles": "Aún no hay archivos — súbelos en la pestaña Archivos."
   },
   "node": {
     "selectStep": "Selecciona un paso para ver sus detalles, ajustes y código generado.",
@@ -238,5 +241,14 @@
     "de": "Deutsch",
     "fr": "Français",
     "es": "Español"
+  },
+  "files": {
+    "upload": "Subir",
+    "loading": "Cargando…",
+    "empty": "Aún no hay archivos",
+    "emptyHint": "Arrastra y suelta o pulsa «Subir». Tus flujos y la IA pueden acceder a estos archivos.",
+    "download": "Descargar",
+    "delete": "Eliminar",
+    "fromWorkflow": "de un flujo"
   }
 }

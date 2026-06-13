@@ -51,7 +51,8 @@
     "chat": "Chat",
     "history": "History",
     "node": "Node",
-    "logs": "Logs"
+    "logs": "Logs",
+    "files": "Files"
   },
   "chat": {
     "tokens": "{{n}} tokens",
@@ -160,7 +161,9 @@
       "code": "code",
       "provider": "provider"
     },
-    "noProviders": "This workflow uses no providers."
+    "noProviders": "This workflow uses no providers.",
+    "pickFile": "Pick a file…",
+    "noFiles": "No files uploaded yet — upload one in the Files tab."
   },
   "node": {
     "selectStep": "Select a step to see its details, settings, and generated code.",
@@ -238,5 +241,14 @@
     "de": "Deutsch",
     "fr": "Français",
     "es": "Español"
+  },
+  "files": {
+    "upload": "Upload",
+    "loading": "Loading…",
+    "empty": "No files yet",
+    "emptyHint": "Drag & drop or “Upload”. Your flows and the AI can access these files.",
+    "download": "Download",
+    "delete": "Delete",
+    "fromWorkflow": "from a flow"
   }
 }

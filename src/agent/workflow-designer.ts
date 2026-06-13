@@ -119,6 +119,7 @@ const PLAN_SYSTEM = [
   "For each step give: id (snake_case, e.g. create_customer), title, summary, effectful (true if it calls an external service), provider (for effectful steps, e.g. 'stripe','slack'), a DETAILED intent (say exactly what values the step needs and what it returns — e.g. a Slack message needs a channel and the text), outputs (its output field names), and deps (ONLY the inputs that come from an UPSTREAM step's output: input name, fromStep id, fromOutput field).",
   "Inputs NOT listed in deps are taken from the user's trigger input automatically by name. Use consistent field names across steps so they wire up.",
   "When the user provides a LIST/multiple values (e.g. several channel ids, multiple emails/recipients), do NOT add a separate step to split or parse a delimited string. Instead, let the consuming step read that input DIRECTLY as an array (iterate it with for...of / forEach) — the UI gives the user a proper list editor for array inputs.",
+  "FILES: when the user wants to SEND/UPLOAD a picked file to a service (e.g. 'send my file to Discord', 'email this attachment'), use a SINGLE effectful step that takes the file directly as an input and sends it. Do NOT add a separate step to 'read', 'decode', 'parse' or 'process' the file first — the file's bytes are delivered to the step automatically. Only add a processing step when the goal genuinely transforms the file's CONTENT (e.g. 'count rows in the CSV', 'extract text'). A file passed between steps stays the whole file object — never decode it to a string in one step and feed it to a step that expects a file.",
 ].join("\n");
 
 export async function planWorkflow(
@@ -149,6 +150,12 @@ const stepBodyZ = z.object({
       "input field names you read as an ARRAY/list (i.e. input.x is iterated with map/forEach/for-of or indexed). Empty if none.",
     )
     .optional(),
+  fileInputs: z
+    .array(z.string())
+    .describe(
+      "input field names that are an UPLOADED FILE the user picks (e.g. a CSV/JSON/image to process). Such an input arrives as { name, mime, size, base64 }; read input.x.base64 (decode with Buffer.from(input.x.base64,'base64')) for bytes or .toString('utf8') for text. Empty if none.",
+    )
+    .optional(),
   dangerClass: z.enum(["benign", "costly", "catastrophic"]).optional(),
   idempotencyMechanism: z
     .enum(["provider-key", "upsert", "read-before-write", "claim", "none"])
@@ -163,6 +170,8 @@ const BODY_SYSTEM = [
   "Return an object containing EXACTLY the required output fields. You may use top-level `import` for npm packages; list each in `dependencies`.",
   "If you read any input as a LIST (input.x.map/forEach/for-of or input.x[i]), list those field names in `arrayInputs` so the UI offers a list editor.",
   "A user-provided list ARRIVES AS A REAL ARRAY — iterate input.x directly with for...of/forEach. Do NOT String.split() it and do NOT expect a comma-separated string.",
+  "If the step processes an UPLOADED FILE (a CSV/JSON/image/etc. the user picks), declare that input in `fileInputs`. It arrives as { name, mime, size, base64 }: for text use Buffer.from(input.x.base64,'base64').toString('utf8'), for bytes use Buffer.from(input.x.base64,'base64'). Do NOT expect a path or a URL.",
+  "If the step SENDS an uploaded file to an external service (e.g. post a file to Discord/Slack/Telegram, attach to an email), the provider exposes a dedicated file-upload method that handles the multipart upload — call it and pass the WHOLE file object straight through: `await ctx.connections.discord.sendFile(input.channel_id, input.file, optionalCaption)`. The file object is { name, mime, size, base64 }. Do NOT decode it to a Buffer yourself, do NOT JSON-stringify it, and do NOT pass it as the text/content argument of a plain message method — those send JSON only and silently drop the file. Use the file method named in the provider's apiDoc.",
 ].join("\n");
 
 async function authorStepBody(
@@ -241,6 +250,18 @@ function extractOutputs(src: string): string[] {
     }
   }
   return [...keys];
+}
+
+// Deterministically detect which inputs are uploaded FILES by how the body
+// reads them — input.x.base64 / .mime / .content_type (the injected file shape).
+// Reliable regardless of whether the model filled `fileInputs`.
+function extractFileInputs(src: string): string[] {
+  const set = new Set<string>();
+  for (const m of src.matchAll(
+    /\binput\.([A-Za-z_$][\w$]*)\.(?:base64|mime|content_type|contentType)\b/g,
+  ))
+    set.add(m[1]);
+  return [...set];
 }
 
 function extractInputs(src: string): string[] {
@@ -355,6 +376,10 @@ export async function designWorkflow(
       ...new Set([...step.outputs, ...extractOutputs(body.bodySource)]),
     ];
     const arrayInputs = new Set(body.arrayInputs ?? []);
+    const fileInputs = new Set([
+      ...(body.fileInputs ?? []),
+      ...extractFileInputs(body.bodySource),
+    ]);
     const depByInput = new Map(step.deps.map((d) => [d.input, d]));
 
     for (const name of usedInputs) {
@@ -383,7 +408,11 @@ export async function designWorkflow(
       inputs: usedInputs.map((name) => ({
         name,
         role: "input",
-        type: arrayInputs.has(name) ? "array" : "string",
+        type: fileInputs.has(name)
+          ? "file"
+          : arrayInputs.has(name)
+            ? "array"
+            : "string",
         required: true,
       })),
       outputSchema: {

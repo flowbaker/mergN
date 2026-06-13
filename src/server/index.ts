@@ -47,6 +47,8 @@ import { authorInputForm } from "../agent/form-author";
 import { createConnections } from "./connections";
 import { createChatStore } from "./chat";
 import { createLogStore } from "./logs";
+import { createFileService, MAX_FILE_BYTES } from "./files";
+import { createBlobStore } from "../store/blobs";
 import { checkForUpdates } from "./update-check";
 import { connectNats, initSchedulerStream, type NatsCtx } from "./nats";
 import { createScheduler, missingRequiredParams, type Scheduler } from "./scheduler";
@@ -69,6 +71,7 @@ const SYSTEM = [
   "- Look at the step's resolved input. If it is empty ({}) or missing the field the error is about (e.g. the error says 'amount required' and the resolved input has no amount), then the step is NOT receiving its data. That is a FLOW problem — a missing input declaration on the func, or a missing wire / missing trigger value — NOT the provider. In that case do NOT call repair_provider. Tell the user clearly that the problem is in the flow, point at the missing input, and suggest the fix (declare the input on the step, or wire it / add it to the trigger input).",
   "- Only if the resolved input clearly contains the data but the provider still rejects it, call repair_provider (with provider id, error, call site, sample input) and say what you fixed.",
   "CONNECTIONS (credentials/secrets) are separate from providers: a provider is the code that calls a service, a connection is the user's stored credential for it. To answer whether the user has a credential for a service (e.g. 'do I have Slack connected?'), call list_connections — it returns metadata only, never the secret value. When the user wants to connect a service, or a workflow needs a provider that has no connection yet, call request_connection with the provider id to open the secure setup dialog where the user enters the secret themselves. NEVER ask the user to type or paste an API key, token, password, or any secret into the chat — you must not handle secret values; always route them through request_connection.",
+  "The user may have uploaded FILES to this space (CSV/JSON/text/etc.). Use list_files to see them and read_file to inspect content before building a workflow that processes a file. A workflow step can receive a file's content via a 'file' input the user picks.",
   "Keep replies short. After building, briefly summarize the steps and how they connect.",
 ].join("\n");
 
@@ -206,6 +209,7 @@ void settings
 const membership = createMembership(store);
 const chats = createChatStore(store);
 const userLogs = createLogStore(store);
+const fileService = createFileService(store, createBlobStore());
 
 const rateLimiter = createMemoryRateLimiter();
 const CHAT_USER_LIMIT: RateLimitRule = { limit: 20, windowMs: 60_000 };
@@ -230,7 +234,7 @@ async function runSavedWorkflow(
   const records: StepRecord[] = [];
   const merged = { ...(wf.variables ?? {}), ...input };
   await runWorkflow(
-    { spaceId, registry, connections },
+    { spaceId, registry, connections, files: fileService },
     wf.funcs as Parameters<typeof runWorkflow>[1],
     wf.wires as Parameters<typeof runWorkflow>[2],
     merged,
@@ -644,6 +648,54 @@ function makeTools(
       })),
     }),
   }),
+  list_files: tool({
+    description:
+      "List files the user uploaded to this space (id, name, mime type, size). Use it to see what files are available — e.g. a CSV/JSON/text the user wants a workflow to process. Call read_file to read a file's content.",
+    inputSchema: z.object({}),
+    execute: async () =>
+      (await fileService.list(spaceId)).map((f) => ({
+        id: f.id,
+        name: f.name,
+        mime: f.mime,
+        size: f.size,
+      })),
+  }),
+  read_file: tool({
+    description:
+      "Read an uploaded file's content by id (from list_files). Returns text for text/CSV/JSON/XML/YAML files (truncated if large); for binary files returns metadata only. Use it to understand a file's columns/structure before building a workflow around it.",
+    inputSchema: z.object({
+      fileId: z.string().describe("the file id from list_files"),
+    }),
+    execute: async ({ fileId }) => {
+      const meta = await fileService.get(spaceId, fileId);
+      if (!meta) return { error: "file not found" };
+      const isText =
+        /^text\/|json|csv|xml|ya?ml|javascript|ndjson|plain/i.test(meta.mime) ||
+        /\.(csv|tsv|json|txt|md|xml|ya?ml|log)$/i.test(meta.name);
+      if (!isText)
+        return {
+          id: meta.id,
+          name: meta.name,
+          mime: meta.mime,
+          size: meta.size,
+          note: "binary file — content not shown",
+        };
+      const buf = await fileService.content(spaceId, fileId);
+      if (!buf) return { error: "file content missing" };
+      const text = buf.toString("utf8");
+      const MAX = 7000;
+      return {
+        id: meta.id,
+        name: meta.name,
+        mime: meta.mime,
+        size: meta.size,
+        content:
+          text.length > MAX
+            ? `${text.slice(0, MAX)}\n…[truncated, ${text.length - MAX} more chars]`
+            : text,
+      };
+    },
+  }),
   list_connections: tool({
     description:
       "List the provider connections (credentials) the user has set up in this space. A provider can have MORE THAN ONE connection (e.g. a work and a personal account); each is returned separately with its own id and account label. Returns metadata only — id, provider, account label, and when it was connected. It NEVER returns the secret value itself. Use this to answer questions like 'do I have a connection for X', to tell apart multiple accounts for the same provider, or to check before telling the user whether a step can run.",
@@ -997,7 +1049,7 @@ app.post("/api/run", async (c) => {
     const startedAt = new Date().toISOString();
     const records: StepRecord[] = [];
     await runWorkflow(
-      { spaceId, registry, connections },
+      { spaceId, registry, connections, files: fileService },
       body.funcs ?? [],
       body.wires ?? [],
       input,
@@ -1197,6 +1249,53 @@ app.post("/api/logs", async (c) => {
 
 app.delete("/api/logs", async (c) => {
   await userLogs.clear(c.get("spaceId"));
+  return c.json({ ok: true });
+});
+
+app.post("/api/files", async (c) => {
+  const spaceId = c.get("spaceId");
+  const body = await c.req.parseBody();
+  const f = body.file;
+  if (!(f instanceof File))
+    return c.json({ error: "multipart field 'file' required" }, 400);
+  if (f.size > MAX_FILE_BYTES)
+    return c.json(
+      { error: `file too large (max ${Math.floor(MAX_FILE_BYTES / 1024 / 1024)} MB)` },
+      413,
+    );
+  const buf = Buffer.from(await f.arrayBuffer());
+  return c.json(
+    await fileService.upload(spaceId, { name: f.name, mime: f.type, body: buf }),
+  );
+});
+
+app.get("/api/files", async (c) =>
+  c.json(await fileService.list(c.get("spaceId"))),
+);
+
+app.get("/api/files/:id", async (c) => {
+  const m = await fileService.get(c.get("spaceId"), c.req.param("id"));
+  return m ? c.json(m) : c.json({ error: "not found" }, 404);
+});
+
+app.get("/api/files/:id/content", async (c) => {
+  const spaceId = c.get("spaceId");
+  const id = c.req.param("id");
+  const meta = await fileService.get(spaceId, id);
+  const content = meta ? await fileService.content(spaceId, id) : null;
+  if (!meta || !content) return c.json({ error: "not found" }, 404);
+  return new Response(new Uint8Array(content), {
+    status: 200,
+    headers: {
+      "Content-Type": meta.mime,
+      "Content-Length": String(content.length),
+      "Content-Disposition": `inline; filename*=UTF-8''${encodeURIComponent(meta.name)}`,
+    },
+  });
+});
+
+app.delete("/api/files/:id", async (c) => {
+  await fileService.remove(c.get("spaceId"), c.req.param("id"));
   return c.json({ ok: true });
 });
 

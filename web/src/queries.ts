@@ -417,6 +417,57 @@ export function saveLlmSettings(body: {
   });
 }
 
+export interface FileMeta {
+  id: string;
+  name: string;
+  mime: string;
+  size: number;
+  source: "user" | "workflow";
+  createdAt: string;
+}
+
+export function useFiles() {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["files", getSpace()],
+    queryFn: () => json<FileMeta[]>("/api/files"),
+    enabled: !!user,
+  });
+}
+
+export async function uploadFile(file: File): Promise<FileMeta> {
+  const fd = new FormData();
+  fd.append("file", file);
+  const res = await fetch("/api/files", {
+    method: "POST",
+    headers: spaceHeaders(),
+    body: fd,
+  });
+  if (!res.ok) {
+    const msg = await res.json().catch(() => ({}));
+    throw new Error(msg.error || `upload failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+export function deleteFile(id: string): Promise<{ ok: boolean }> {
+  return json(`/api/files/${id}`, { method: "DELETE" });
+}
+
+export async function downloadFile(meta: FileMeta): Promise<void> {
+  const res = await fetch(`/api/files/${meta.id}/content`, {
+    headers: spaceHeaders(),
+  });
+  if (!res.ok) throw new Error(`download failed: ${res.status}`);
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = meta.name;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export interface LogEntry {
   id: string;
   ts: string;

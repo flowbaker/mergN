@@ -26,12 +26,15 @@ import type { Connections } from "./connections";
 import { RemoteSandboxRuntime } from "./remote-sandbox-runtime";
 import { LocalRuntime } from "./local-runtime";
 import { DockerRuntime } from "./docker-runtime";
+import { FileInjectingRuntime } from "./file-runtime";
+import type { FileService } from "./files";
 import { resolveEgressHost } from "./egress";
 
 export interface RunDeps {
   spaceId: string;
   registry: Registry;
   connections: Connections;
+  files?: FileService;
 }
 
 class NotifyingRunLog implements RunLogStore {
@@ -88,6 +91,8 @@ function toSchema(type: string): Schema {
       return { type: "boolean" };
     case "array":
       return { type: "array" };
+    case "file":
+      return { type: "file" };
     case "string":
       return { type: "string" };
     default:
@@ -276,7 +281,21 @@ export async function runWorkflow(
   const log = new NotifyingRunLog(onRecord);
   const scheduler = new Scheduler(workflow, log, queue);
 
-  const runtime = createRuntime();
+  let runtime = createRuntime();
+  if (deps.files) {
+    const files = deps.files;
+    const spaceId = deps.spaceId;
+    runtime = new FileInjectingRuntime(runtime, async (id) => {
+      try {
+        const meta = await files.get(spaceId, id);
+        if (!meta) return null;
+        const body = await files.content(spaceId, id);
+        return body ? { name: meta.name, mime: meta.mime, size: meta.size, body } : null;
+      } catch {
+        return null; // invalid/unknown id -> no injection (step sees the raw value)
+      }
+    });
+  }
   const resolver: ConnectionResolver = new CarrierConnectionsResolver(deps);
 
   const worker = new Worker(

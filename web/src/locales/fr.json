@@ -51,7 +51,8 @@
     "chat": "Chat",
     "history": "Historique",
     "node": "Nœud",
-    "logs": "Journaux"
+    "logs": "Journaux",
+    "files": "Fichiers"
   },
   "chat": {
     "tokens": "{{n}} jetons",
@@ -160,7 +161,9 @@
       "code": "code",
       "provider": "fournisseur"
     },
-    "noProviders": "Ce workflow n'utilise aucun fournisseur."
+    "noProviders": "Ce workflow n'utilise aucun fournisseur.",
+    "pickFile": "Choisir un fichier…",
+    "noFiles": "Aucun fichier — téléversez-en un dans l'onglet Fichiers."
   },
   "node": {
     "selectStep": "Sélectionnez une étape pour voir ses détails, ses paramètres et son code généré.",
@@ -238,5 +241,14 @@
     "de": "Deutsch",
     "fr": "Français",
     "es": "Español"
+  },
+  "files": {
+    "upload": "Téléverser",
+    "loading": "Chargement…",
+    "empty": "Aucun fichier pour le moment",
+    "emptyHint": "Glissez-déposez ou cliquez sur « Téléverser ». Vos flux et l’IA peuvent accéder à ces fichiers.",
+    "download": "Télécharger",
+    "delete": "Supprimer",
+    "fromWorkflow": "d’un flux"
   }
 }

@@ -15,6 +15,7 @@ import "@xyflow/react/dist/style.css";
 import { Sun, Moon, Zap, Wand2, Loader2 } from "lucide-react";
 import { detectIssues, repairWiring } from "./health";
 import { LogsPanel } from "./LogsPanel";
+import { FilesPanel } from "./FilesPanel";
 import { Chat } from "./Chat";
 import { TriggerDialog } from "./TriggerDialog";
 import { Pipeline } from "./Pipeline";
@@ -1075,6 +1076,7 @@ export function App({
               onDelete={removeChat}
             />
           }
+          files={<FilesPanel />}
           logs={<LogsPanel active={activeTab === "logs"} />}
           node={
             <NodePanel

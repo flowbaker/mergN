@@ -35,6 +35,12 @@ services:
       # for single-tenant self-host. fb-work is shared with the step containers.
       - /var/run/docker.sock:/var/run/docker.sock
       - fb-work:/data/fb-work
+      # uploaded file BYTES (LocalBlobStore writes to ./data/files). Without this
+      # volume the bytes live in the container's ephemeral FS and are lost on every
+      # restart/recreate — metadata stays in mongo but the content disappears, so
+      # file-input steps resolve to an empty file. Set FILE_DRIVER=s3 to store
+      # bytes in object storage instead.
+      - fb-files:/app/data
     # lets the app reach a local Ollama (LLM_BASE_URL=http://host.docker.internal:11434/v1)
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -81,5 +87,6 @@ services:
 volumes:
   mongo-data:
   nats-data:
+  fb-files:
   fb-work:
     name: fb-work

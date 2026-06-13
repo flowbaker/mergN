@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { RefreshCw, Loader2, Check, Pencil } from "lucide-react";
@@ -21,6 +21,7 @@ import {
   fetchRun,
   generateInputForm,
   fetchProviderSource,
+  useFiles,
   type ProviderSource,
 } from "./queries";
 import { CodeBlock } from "./CodeBlock";
@@ -111,6 +112,17 @@ export function RunPanel({
   const qc = useQueryClient();
   const { requireAuth } = useAuth();
   const runsQuery = useRuns(workflowId);
+  const { data: filesData } = useFiles();
+  const files = filesData ?? [];
+  const fileFields = useMemo(
+    () =>
+      new Set(
+        funcs.flatMap((f) =>
+          f.inputs.filter((i) => i.type === "file").map((i) => i.name),
+        ),
+      ),
+    [funcs],
+  );
   const [input, setInput] = useState("{}");
   const [records, setRecords] = useState<RunRecord[]>([]);
   const [running, setRunning] = useState(false);
@@ -341,17 +353,21 @@ export function RunPanel({
 
   const run = async () => {
     if (!requireAuth(() => void run())) return;
-    let parsed: unknown;
+    let parsed: Record<string, unknown>;
     if (useForm && inputMode === "form") {
       parsed = buildFormInput();
     } else {
       try {
-        parsed = JSON.parse(input || "{}");
+        const j = JSON.parse(input || "{}");
+        parsed = j && typeof j === "object" ? (j as Record<string, unknown>) : {};
       } catch {
         setError(t("run.invalidJson"));
         return;
       }
     }
+    // include the saved form values (e.g. a picked file) so the run always uses
+    // them, even from JSON mode; the explicit input above takes precedence.
+    parsed = { ...variables, ...parsed };
     const id = crypto.randomUUID();
     setCurrentRunId(id);
     await streamRun({
@@ -646,6 +662,48 @@ export function RunPanel({
                       {f.help && (
                         <p className="text-[11px] leading-snug text-muted-foreground/70">
                           {f.help}
+                        </p>
+                      )}
+                    </div>
+                  );
+                }
+                if (fileFields.has(f.name)) {
+                  const fid = String(formValues[f.name] ?? "");
+                  return (
+                    <div key={f.name} className="space-y-1">
+                      <label className="flex items-center gap-2 text-xs">
+                        <span className="font-medium">{f.label}</span>
+                        <span className="font-mono text-[10px] text-muted-foreground/50">
+                          {f.name}
+                        </span>
+                        {f.required && (
+                          <span className="text-[10px] text-rose-300/70">
+                            {t("run.required")}
+                          </span>
+                        )}
+                      </label>
+                      <Select
+                        value={fid || undefined}
+                        onValueChange={(v) => setField(f.name, v)}
+                        disabled={!files.length}
+                      >
+                        <SelectTrigger
+                          size="sm"
+                          className="h-8 w-full bg-background-subtle text-xs"
+                        >
+                          <SelectValue placeholder={t("run.pickFile")} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {files.map((x) => (
+                            <SelectItem key={x.id} value={x.id} className="text-xs">
+                              {x.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {!files.length && (
+                        <p className="text-[11px] text-muted-foreground/70">
+                          {t("run.noFiles")}
                         </p>
                       )}
                     </div>

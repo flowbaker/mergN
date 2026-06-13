@@ -51,7 +51,8 @@
     "chat": "Chat",
     "history": "Verlauf",
     "node": "Knoten",
-    "logs": "Logs"
+    "logs": "Logs",
+    "files": "Dateien"
   },
   "chat": {
     "tokens": "{{n}} Tokens",
@@ -160,7 +161,9 @@
       "code": "Code",
       "provider": "Anbieter"
     },
-    "noProviders": "Dieser Workflow verwendet keine Anbieter."
+    "noProviders": "Dieser Workflow verwendet keine Anbieter.",
+    "pickFile": "Datei wählen…",
+    "noFiles": "Noch keine Dateien — im Dateien-Tab hochladen."
   },
   "node": {
     "selectStep": "Wähle einen Schritt, um seine Details, Einstellungen und den generierten Code zu sehen.",
@@ -238,5 +241,14 @@
     "de": "Deutsch",
     "fr": "Français",
     "es": "Español"
+  },
+  "files": {
+    "upload": "Hochladen",
+    "loading": "Wird geladen…",
+    "empty": "Noch keine Dateien",
+    "emptyHint": "Ziehen & ablegen oder „Hochladen“. Deine Flows und die KI können auf diese Dateien zugreifen.",
+    "download": "Herunterladen",
+    "delete": "Löschen",
+    "fromWorkflow": "aus einem Flow"
   }
 }

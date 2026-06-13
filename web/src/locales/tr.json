@@ -51,7 +51,8 @@
     "chat": "Sohbet",
     "history": "Geçmiş",
     "node": "Düğüm",
-    "logs": "Loglar"
+    "logs": "Loglar",
+    "files": "Dosyalar"
   },
   "chat": {
     "tokens": "{{n}} token",
@@ -160,7 +161,9 @@
       "code": "kod",
       "provider": "sağlayıcı"
     },
-    "noProviders": "Bu workflow sağlayıcı kullanmıyor."
+    "noProviders": "Bu workflow sağlayıcı kullanmıyor.",
+    "pickFile": "Dosya seç…",
+    "noFiles": "Henüz dosya yok — Dosyalar sekmesinden yükle."
   },
   "node": {
     "selectStep": "Detaylarını, ayarlarını ve üretilen kodu görmek için bir adım seç.",
@@ -238,5 +241,14 @@
     "de": "Deutsch",
     "fr": "Français",
     "es": "Español"
+  },
+  "files": {
+    "upload": "Yükle",
+    "loading": "Yükleniyor…",
+    "empty": "Henüz dosya yok",
+    "emptyHint": "Sürükle-bırak ya da “Yükle”. Akışların ve AI bu dosyalara erişebilir.",
+    "download": "İndir",
+    "delete": "Sil",
+    "fromWorkflow": "akıştan"
   }
 }
