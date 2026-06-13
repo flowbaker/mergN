@@ -13,6 +13,7 @@ import { AuthForm } from "./AuthForm";
 import { AuthProvider, useAuth } from "./authContext";
 import { useSpaces } from "./queries";
 import { setSpace, getLastSpace } from "./space";
+import { BillingPage } from "./BillingPage";
 
 function RootLayout() {
   return (
@@ -114,11 +115,19 @@ const workflowRoute = createRoute({
   component: BuilderPage,
 });
 
+const billingRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/s/$spaceId/billing",
+  loader: ({ params }) => setSpace(params.spaceId),
+  component: BillingPage,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
   spaceRoute,
   workflowRoute,
+  billingRoute,
 ]);
 
 export const router = createRouter({ routeTree });

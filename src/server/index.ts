@@ -2,8 +2,9 @@ import { trace, flushTraces } from "../observability";
 import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { existsSync } from "node:fs";
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { streamSSE } from "hono/streaming";
+import { HTTPException } from "hono/http-exception";
 import {
   streamText,
   convertToModelMessages,
@@ -54,6 +55,9 @@ import { createChatStore } from "./chat";
 import { createLogStore } from "./logs";
 import { createFileService, MAX_FILE_BYTES } from "./files";
 import { createBlobStore } from "../store/blobs";
+import { createBilling } from "./billing";
+import { createUsageStore } from "./usage";
+import { getPlan } from "./plans";
 import { checkForUpdates } from "./update-check";
 import { connectNats, initSchedulerStream, type NatsCtx } from "./nats";
 import { createScheduler, missingRequiredParams, type Scheduler } from "./scheduler";
@@ -216,6 +220,8 @@ const membership = createMembership(store);
 const chats = createChatStore(store);
 const userLogs = createLogStore(store);
 const fileService = createFileService(store, createBlobStore());
+const billing = createBilling(store);
+const usage = createUsageStore(store);
 
 const rateLimiter = createMemoryRateLimiter();
 const CHAT_USER_LIMIT: RateLimitRule = { limit: 20, windowMs: 60_000 };
@@ -769,7 +775,8 @@ app.use("/api/*", async (c, next) => {
   if (
     path.startsWith("/api/auth/") ||
     path.startsWith("/api/hooks/") ||
-    path === "/api/config"
+    path === "/api/config" ||
+    path === "/api/billing/webhook"
   )
     return next();
 
@@ -869,6 +876,48 @@ app.post("/api/chat", async (c) => {
   const previous =
     (await chats.getConversation(spaceId, userId, conversationId))?.messages ??
     [];
+
+  // Plan limits: Free is capped on number of conversations, Pro on monthly
+  // tokens. A new conversation is one with no prior messages. Only enforced when
+  // billing (Stripe) is configured — otherwise there's no way to upgrade, so we
+  // leave usage uncapped (the global GLOBAL_TOKEN_CAP still applies).
+  const plan = getPlan((await billing.planOf(spaceId)).slug);
+  const spaceUsage = await usage.get(spaceId);
+  const isNewChat = previous.length === 0;
+  if (
+    billing.enabled() &&
+    plan.limits.chats >= 0 &&
+    isNewChat &&
+    spaceUsage.chats >= plan.limits.chats
+  ) {
+    return c.json(
+      {
+        error: "plan_limit",
+        limit: "chats",
+        plan: plan.slug,
+        message: `You've used all ${plan.limits.chats} chats on the Free plan this month. Upgrade to Pro to keep building.`,
+      },
+      402,
+    );
+  }
+  if (
+    billing.enabled() &&
+    plan.limits.aiTokens >= 0 &&
+    spaceUsage.aiTokens >= plan.limits.aiTokens
+  ) {
+    return c.json(
+      {
+        error: "plan_limit",
+        limit: "tokens",
+        plan: plan.slug,
+        message:
+          "You've used all your AI tokens for this month. They reset at the start of next month, or contact us for a higher limit.",
+      },
+      402,
+    );
+  }
+  if (isNewChat) void usage.recordChat(spaceId);
+
   const messages = [...(previous as UIMessage[]), message];
   const modelMessages = await convertToModelMessages(messages);
 
@@ -898,7 +947,9 @@ app.post("/api/chat", async (c) => {
         },
         experimental_telemetry: trace("builder-chat", { spaceId, sessionId }),
         onFinish: (event) => {
-          void recordTokens(event.totalUsage?.totalTokens ?? 0);
+          const t = event.totalUsage?.totalTokens ?? 0;
+          void recordTokens(t);
+          void usage.addTokens(spaceId, t);
           void flushTraces();
         },
       });
@@ -1361,6 +1412,59 @@ app.post("/api/spaces", async (c) => {
   );
   await registry.ensureSpace(space.id);
   return c.json({ id: space.id, name: space.name });
+});
+
+// --- Billing (Stripe) ---
+async function assertSpaceOwner(c: Context): Promise<string> {
+  const spaceId = c.req.param("id");
+  if (!spaceId) throw new HTTPException(400, { message: "bad space id" });
+  if (!DISABLE_AUTH && !(await membership.canAccess(c.get("userId"), spaceId)))
+    throw new HTTPException(403, { message: "forbidden" });
+  return spaceId;
+}
+
+app.get("/api/spaces/:id/billing/subscription", async (c) => {
+  const spaceId = await assertSpaceOwner(c);
+  const sub = await billing.getSubscription(spaceId);
+  const u = await usage.get(spaceId);
+  return c.json({
+    ...sub,
+    usage: { chats: u.chats, ai_tokens: u.aiTokens },
+    billing_enabled: billing.enabled(),
+  });
+});
+
+app.post("/api/spaces/:id/billing/portal", async (c) => {
+  const spaceId = await assertSpaceOwner(c);
+  if (!billing.enabled())
+    return c.json({ error: "billing_not_configured" }, 503);
+  try {
+    const returnUrl = `${process.env.APP_URL ?? ""}/s/${spaceId}/billing`;
+    const url = await billing.createPortalSession(spaceId, returnUrl);
+    return c.json({ portal_url: url });
+  } catch (e) {
+    return c.json(
+      { error: e instanceof Error ? e.message : "portal failed" },
+      500,
+    );
+  }
+});
+
+app.get("/api/spaces/:id/billing/invoices", async (c) => {
+  const spaceId = await assertSpaceOwner(c);
+  return c.json(await billing.getInvoices(spaceId));
+});
+
+app.post("/api/billing/webhook", async (c) => {
+  const sig = c.req.header("stripe-signature") ?? "";
+  const body = await c.req.text();
+  try {
+    await billing.handleWebhook(body, sig);
+    return c.json({ received: true });
+  } catch (e) {
+    console.error("stripe webhook failed", e);
+    return c.json({ error: "webhook failed" }, 400);
+  }
 });
 
 app.get("/api/connections", async (c) => {

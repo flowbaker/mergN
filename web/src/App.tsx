@@ -26,6 +26,7 @@ import { NodePanel } from "./NodePanel";
 import { RightPanel, type RightTab } from "./RightPanel";
 import { WorkflowsPanel } from "./WorkflowsPanel";
 import { SpaceSwitcher } from "./SpaceSwitcher";
+import { PlanChip } from "./PlanChip";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 import { ConnectionsPanel } from "./ConnectionsPanel";
 import { triggerIntervalMs } from "./schedule-display";
@@ -832,6 +833,7 @@ export function App({
       <div className="p-2 pb-0">
         <header className="flex items-center gap-3 rounded-2xl border border-border/40 bg-muted/40 px-4 py-2">
           {user && <SpaceSwitcher />}
+          {user && <PlanChip />}
           <Badge variant="secondary" className="ml-auto font-normal">
             {t("header.funcCount", { n: funcs.length })}
           </Badge>

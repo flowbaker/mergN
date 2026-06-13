@@ -8,7 +8,9 @@ import type { AuthoredFunc, InputForm, TriggerConfig, Wire, WorkflowOp } from ".
 import { Sparkles, ArrowUpRight, Brain, Loader2, SquarePen, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Markdown } from "./Markdown";
-import { spaceHeaders } from "./space";
+import { spaceHeaders, getSpace } from "./space";
+import { useNavigate } from "@tanstack/react-router";
+import { useSubscription, atPlanLimit } from "./billing";
 import { useAuth } from "./authContext";
 import { useConversation, useConnections, reportLog } from "./queries";
 import { ConnectionDialog } from "./ConnectionDialog";
@@ -377,6 +379,8 @@ function ChatThread({
   const [connectProvider, setConnectProvider] = useState<string | null>(null);
   const handledConnects = useRef<Set<string>>(new Set());
   const { data: connectionsData } = useConnections();
+  const billingNav = useNavigate();
+  const { data: subscription } = useSubscription(getSpace());
   const taRef = useRef<HTMLTextAreaElement>(null);
 
   const grow = () => {
@@ -633,6 +637,35 @@ function ChatThread({
             </Button>
           </AlertDescription>
         </Alert>
+      )}
+
+      {atPlanLimit(subscription) && (
+        <div className="mx-2 mb-1 rounded-xl border border-tone-amber/30 bg-tone-amber/10 px-3 py-2">
+          <p className="text-sm font-medium text-foreground">
+            {subscription?.plan_slug === "free"
+              ? "You've used all your free chats this month"
+              : "You've used all your AI tokens this month"}
+          </p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {subscription?.plan_slug === "free"
+              ? "Upgrade to Pro for unlimited chats and 5M tokens/month."
+              : "They reset next month — or contact us for a higher limit."}
+          </p>
+          <Button
+            size="sm"
+            className="mt-2 h-7"
+            onClick={() => {
+              const sid = getSpace();
+              if (sid)
+                void billingNav({
+                  to: "/s/$spaceId/billing",
+                  params: { spaceId: sid },
+                });
+            }}
+          >
+            {subscription?.plan_slug === "free" ? "Upgrade to Pro" : "Manage plan"}
+          </Button>
+        </div>
       )}
 
       <form onSubmit={submit} className="p-2">
