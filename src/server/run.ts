@@ -162,9 +162,11 @@ function toNode(
     const w = wires.find((x) => x.to === f.id && x.toInput === p.name);
     if (!w) {
       if (p.role !== "config") {
+        // `payload` is a reserved name meaning the ENTIRE trigger body (the raw
+        // webhook JSON / whole run input). Any other name takes one field by name.
         bindings[p.name] = {
           mode: "ref",
-          path: `trigger.output.${p.name}`,
+          path: p.name === "payload" ? "trigger.output" : `trigger.output.${p.name}`,
         };
       }
       continue;

@@ -1198,14 +1198,20 @@ app.post("/api/hooks/:spaceId/:workflowId", async (c) => {
 
   await registry.ensureSpace(spaceId);
   const wf = await workflows.getWorkflow(spaceId, workflowId);
-  if (!wf) return c.json({ error: "workflow not found" }, 404);
+  if (!wf) {
+    console.log(`[hook] ${spaceId}/${workflowId} -> 404 workflow not found`);
+    return c.json({ error: "workflow not found" }, 404);
+  }
   if (wf.trigger?.kind !== "webhook")
     return c.json({ error: "workflow has no webhook trigger" }, 400);
 
   const rawBody = await c.req.text();
   const headers = Object.fromEntries(c.req.raw.headers.entries()); // keys lowercased
-  if (!(await webhookAuth.verify(spaceId, workflowId, headers, rawBody)))
-    return c.json({ error: "unauthorized" }, 401);
+  const authOk = await webhookAuth.verify(spaceId, workflowId, headers, rawBody);
+  console.log(
+    `[hook] ${workflowId} authOk=${authOk} sigHeaders=${Object.keys(headers).filter((k) => /sign/i.test(k)).join(",") || "none"} bodyLen=${rawBody.length}`,
+  );
+  if (!authOk) return c.json({ error: "unauthorized" }, 401);
 
   // auth-only probe used by the "Test" button — verifies without running
   if (c.req.header("x-webhook-test")) return c.json({ ok: true, test: true });
