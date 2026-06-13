@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
-import { Trash2, Plus } from "lucide-react";
+import { Trash2, MessageSquarePlus } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { ConversationMeta } from "./queries";
 
@@ -47,16 +48,15 @@ export function ChatHistory({
     <div className="flex h-full w-full flex-col">
       <div className="min-h-0 flex-1 space-y-2.5 overflow-auto p-3">
         {/* New chat — same card style as the items, pinned to the top */}
-        <div
+        <Button
           onClick={onNew}
-          className={cn(
-            CARD,
-            "flex items-center gap-2 border-border/50 font-medium text-foreground hover:border-border hover:bg-background-subtle/60",
-          )}
+          variant="ghost"
+          size="sm"
+          className="mt-1 h-auto w-full justif-center gap-2 rounded-xl border-border/80 py-2.5 font-medium text-foreground shadow-none hover:border-border hover:bg-background-subtle"
         >
-          <Plus className="size-4" />
+          <MessageSquarePlus className="size-4 shrink-0" />
           {t("history.newChat")}
-        </div>
+        </Button>
 
         {isLoading &&
           Array.from({ length: 5 }).map((_, i) => (
