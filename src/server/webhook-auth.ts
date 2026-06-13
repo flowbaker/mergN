@@ -9,6 +9,18 @@ import type { Vault } from "../store/vault";
 
 export type WebhookAuthType = "none" | "hmac" | "basic" | "bearer" | "jwt";
 
+// Signature headers tried (in order) when the user doesn't name one — covers
+// the common providers (GitHub, Stripe, generic).
+const COMMON_SIG_HEADERS = [
+  "x-signature",
+  "x-hub-signature-256",
+  "x-hub-signature",
+  "stripe-signature",
+  "x-webhook-signature",
+  "x-signature-256",
+  "signature",
+];
+
 export interface WebhookAuthConfig {
   type: WebhookAuthType;
   header?: string; // signature header (hmac) or token header (jwt/bearer)
@@ -42,9 +54,46 @@ function verifyConfig(
     case "none":
       return true;
     case "hmac": {
-      const sig = h(header || "x-signature").replace(/^sha256=/i, "");
-      if (!sig) return false;
-      return tEq(sig, hmacHex(secret, rawBody));
+      // Generic HMAC-SHA256. Auto-handles the common provider shapes without a
+      // per-provider preset: a plain hex/base64 signature, a `sha256=…` prefix
+      // (GitHub), or a compound `t=…,v1=…` header (Stripe). Tries signing both
+      // the raw body and `timestamp.body`, in hex and base64. Any match passes.
+      const names = header ? [header] : COMMON_SIG_HEADERS;
+      for (const name of names) {
+        const raw = h(name);
+        if (!raw) continue;
+        let sig = raw;
+        let ts: string | undefined;
+        if (raw.includes(",")) {
+          const parts: Record<string, string> = {};
+          for (const kv of raw.split(",")) {
+            const i = kv.indexOf("=");
+            if (i > 0) parts[kv.slice(0, i).trim()] = kv.slice(i + 1).trim();
+          }
+          ts = parts["t"] ?? parts["timestamp"];
+          sig = parts["v1"] ?? parts["v0"] ?? parts["s"] ?? parts["sha256"] ?? sig;
+        } else if (/^[a-z0-9]+=/i.test(raw)) {
+          sig = raw.replace(/^[a-z0-9]+=/i, ""); // strip "sha256=" / "sha1="
+        }
+        const payloads = ts ? [`${ts}.${rawBody}`, rawBody] : [rawBody];
+        for (const p of payloads) {
+          const hex = createHmac("sha256", secret).update(p).digest("hex");
+          const b64 = createHmac("sha256", secret).update(p).digest("base64");
+          if (tEq(sig, hex) || tEq(sig, b64)) {
+            if (ts) {
+              let t = Number(ts);
+              if (t > 1e12) t = Math.floor(t / 1000); // ms → s
+              if (
+                Number.isFinite(t) &&
+                Math.abs(Math.floor(Date.now() / 1000) - t) > 900
+              )
+                continue; // 15-minute replay window when a timestamp is signed
+            }
+            return true;
+          }
+        }
+      }
+      return false;
     }
     case "basic": {
       const auth = h("authorization");

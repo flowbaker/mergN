@@ -10,7 +10,7 @@ import {
 
 const METHODS: { value: WebhookAuthType; label: string }[] = [
   { value: "none", label: "No auth (insecure)" },
-  { value: "hmac", label: "HMAC signature" },
+  { value: "hmac", label: "HMAC signature (GitHub, Stripe, generic)" },
   { value: "basic", label: "Basic auth" },
   { value: "bearer", label: "Bearer token" },
   { value: "jwt", label: "JWT (HS256)" },
@@ -133,7 +133,7 @@ export function WebhookSecurity({ workflowId }: { workflowId: string }) {
               ? "secret (leave blank to keep current)"
               : type === "bearer"
                 ? "token"
-                : "signing secret"
+                : "signing secret (e.g. Stripe whsec_…)"
           }
           value={secret}
           onChange={(e) => setSecret(e.target.value)}
