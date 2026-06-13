@@ -55,6 +55,22 @@ export const PLANS: Plan[] = [
     stripePriceEnv: "STRIPE_PRICE_PRO",
   },
   {
+    // Internal test plan — maps to a cheap test Stripe price. Not advertised; it
+    // only exists so the upgrade flow can be exercised with a $0.10 product and
+    // shows "Test" (not "Pro") when active.
+    slug: "test",
+    name: "Test",
+    description: "Internal test plan.",
+    priceMonthly: 0.1,
+    currency: "usd",
+    limits: {
+      chats: -1,
+      aiTokens: Number(process.env.PRO_TOKEN_LIMIT ?? "5000000"),
+    },
+    features: ["Test plan"],
+    stripePriceEnv: "STRIPE_PRICE_PRO_TEST",
+  },
+  {
     slug: "enterprise",
     name: "Enterprise",
     description: "Custom limits, SSO, on-prem and a support SLA.",
@@ -78,10 +94,5 @@ export function planStripePriceId(plan: Plan): string | undefined {
 }
 
 export function planForStripePriceId(priceId: string): Plan | undefined {
-  // A cheap test price can be mapped to Pro (e.g. a $0.10 "Test" product used to
-  // exercise the upgrade flow) via STRIPE_PRICE_PRO_TEST.
-  const proTest = process.env.STRIPE_PRICE_PRO_TEST;
-  if (proTest && priceId === proTest)
-    return PLANS.find((p) => p.slug === "pro");
   return PLANS.find((p) => planStripePriceId(p) === priceId);
 }
