@@ -93,7 +93,7 @@ https://www.mongodb.com/docs/manual/installation/
 
 ----------------------------------------------------
 
-## Start Native (in separated two terminals):
+**Start Native (in separated two terminals):**
 
 ```bash
 npm run server          # backend  -> http://localhost:8787
