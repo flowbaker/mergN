@@ -38,7 +38,7 @@ Developers get the power of AI-generated workflow logic combined with a visual i
 Mongo, NATS, the step-runner — is bundled in compose. Clone and run:
 
 ```bash
-git clone https://github.com/flowbaker/MergN.git && cd MergN
+git clone https://github.com/flowbaker/MergN.git && cd ~/MergN 
 docker compose up -d        # starts in the background -> http://localhost:8787
 ```
 Open http://localhost:8787. 
@@ -47,10 +47,12 @@ That's it. The application is now running with Docker.
 
 Logs: 
 ```bash
+cd ~/MergN 
 docker compose logs -f app 
 ```
 Stop: 
 ```bash
+cd ~/MergN 
 docker compose down
 ```
 
