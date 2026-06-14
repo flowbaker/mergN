@@ -60,6 +60,7 @@ docker compose down
 
 When you want to update to the latest version, run:
 ```bash
+cd ~/MergN 
 git pull && docker compose up -d
 ```
 This pulls the latest changes and restarts the containers.
