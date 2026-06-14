@@ -29,6 +29,7 @@ import { SpaceSwitcher } from "./SpaceSwitcher";
 import { PlanChip } from "./PlanChip";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 import { LegalLinks } from "./LegalLinks";
+import { EnterpriseDialog } from "./EnterpriseDialog";
 import { ConnectionsPanel } from "./ConnectionsPanel";
 import { triggerIntervalMs } from "./schedule-display";
 import { ChatPanel } from "./ChatPanel";
@@ -124,6 +125,31 @@ function Canvas({
       <Background />
       <Controls />
     </ReactFlow>
+  );
+}
+
+// Header "Contact us" — opens the shared contact dialog framed for feedback
+// (bug reports & product ideas) rather than the Enterprise sales context.
+function ContactUsLink() {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Button
+        size="sm"
+        variant="ghost"
+        className="h-8 px-2 text-xs text-muted-foreground"
+        onClick={() => setOpen(true)}
+      >
+        Contact us
+      </Button>
+      {open && (
+        <EnterpriseDialog
+          title="Talk to us"
+          description="Found a bug or have an idea to make the product better? Send it our way — we read every message."
+          onClose={() => setOpen(false)}
+        />
+      )}
+    </>
   );
 }
 
@@ -876,6 +902,7 @@ export function App({
       
           <div className="ml-auto flex items-center gap-3">
             <LegalLinks />
+            <ContactUsLink />
             <Badge variant="secondary" className="font-normal">
               {t("header.funcCount", { n: funcs.length })}
             </Badge>
