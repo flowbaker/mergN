@@ -10,6 +10,11 @@
     "done": "Fertig",
     "back": "Zurück"
   },
+  "errors": {
+    "apiUnreachableTitle": "Server nicht erreichbar",
+    "apiUnreachableBody": "Keine Verbindung zum Server. Prüfe, ob er läuft, und versuche es erneut.",
+    "retry": "Erneut versuchen"
+  },
   "array": {
     "empty": "Noch keine Einträge.",
     "add": "Eintrag hinzufügen",

@@ -8,8 +8,10 @@ import {
 } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { X } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { X, ServerCrash } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import { useSession, signOut } from "./auth";
 import { AuthForm } from "./AuthForm";
 
@@ -22,6 +24,7 @@ export interface AuthUser {
 interface AuthContextValue {
   user: AuthUser | null;
   pending: boolean;
+  authDisabled: boolean | null;
   managed: boolean | null;
   requireAuth: (action?: () => void) => boolean;
   withAuth: <A extends unknown[]>(fn: (...args: A) => void) => (...args: A) => void;
@@ -31,6 +34,7 @@ interface AuthContextValue {
 const Ctx = createContext<AuthContextValue>({
   user: null,
   pending: true,
+  authDisabled: null,
   managed: null,
   requireAuth: () => false,
   withAuth: (fn) => fn,
@@ -67,21 +71,51 @@ const LOCAL_USER: AuthUser = {
   name: "Local",
 };
 
+function ApiUnreachable({ onRetry }: { onRetry: () => void }) {
+  const { t } = useTranslation();
+  return (
+    <div className="flex h-screen w-screen flex-col items-center justify-center bg-background px-6 text-center text-foreground">
+      <div className="flex size-12 items-center justify-center rounded-2xl bg-destructive/10 text-destructive">
+        <ServerCrash className="size-6" />
+      </div>
+      <h1 className="mt-5 text-lg font-medium">{t("errors.apiUnreachableTitle")}</h1>
+      <p className="mt-2 max-w-md text-sm leading-relaxed text-muted-foreground">
+        {t("errors.apiUnreachableBody")}
+      </p>
+      <Button className="mt-6" onClick={onRetry}>
+        {t("errors.retry")}
+      </Button>
+    </div>
+  );
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [authDisabled, setAuthDisabled] = useState<boolean | null>(null);
   const [managed, setManaged] = useState<boolean | null>(null);
+  const [apiUnreachable, setApiUnreachable] = useState(false);
+  const [configAttempt, setConfigAttempt] = useState(0);
+
   useEffect(() => {
+    let cancelled = false;
+    setApiUnreachable(false);
     fetch("/api/config")
-      .then((r) => r.json())
-      .then((c: { authDisabled?: boolean; managed?: boolean }) => {
+      .then(async (r) => {
+        if (!r.ok) throw new Error(String(r.status));
+        return r.json() as Promise<{ authDisabled?: boolean; managed?: boolean }>;
+      })
+      .then((c) => {
+        if (cancelled) return;
         setAuthDisabled(!!c.authDisabled);
         setManaged(!!c.managed);
       })
       .catch(() => {
-        setAuthDisabled(false);
-        setManaged(false);
+        if (cancelled) return;
+        setApiUnreachable(true);
       });
-  }, []);
+    return () => {
+      cancelled = true;
+    };
+  }, [configAttempt]);
 
   const { data: session, isPending } = useSession();
   const [cachedUser, setCachedUser] = useState<AuthUser | null>(readCachedUser);
@@ -125,13 +159,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const requireAuth = useCallback(
     (action?: () => void) => {
-      if (user) return true;
+      if (authDisabled || user) return true;
       pendingAction.current = action ?? null;
       setClosing(false);
       setOpen(true);
       return false;
     },
-    [user],
+    [authDisabled, user],
   );
 
   const withAuth = useCallback(
@@ -160,11 +194,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setClosing(false);
   };
 
+  if (apiUnreachable) {
+    return (
+      <ApiUnreachable onRetry={() => setConfigAttempt((n) => n + 1)} />
+    );
+  }
+
   return (
     <Ctx.Provider
       value={{
         user,
         pending,
+        authDisabled,
         managed,
         requireAuth,
         withAuth,

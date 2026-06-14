@@ -10,6 +10,11 @@
     "done": "Tamam",
     "back": "Geri"
   },
+  "errors": {
+    "apiUnreachableTitle": "Sunucuya ulaşılamıyor",
+    "apiUnreachableBody": "Sunucuya bağlanılamadı. Çalıştığından emin olup tekrar dene.",
+    "retry": "Tekrar dene"
+  },
   "array": {
     "empty": "Henüz öğe yok.",
     "add": "Öğe ekle",

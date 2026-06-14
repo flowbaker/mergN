@@ -10,6 +10,11 @@
     "done": "Listo",
     "back": "Atrás"
   },
+  "errors": {
+    "apiUnreachableTitle": "No se puede conectar al servidor",
+    "apiUnreachableBody": "No hay conexión con el servidor. Comprueba que esté en marcha e inténtalo de nuevo.",
+    "retry": "Reintentar"
+  },
   "array": {
     "empty": "Aún no hay elementos.",
     "add": "Añadir elemento",

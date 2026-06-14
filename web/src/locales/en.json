@@ -10,6 +10,11 @@
     "done": "Done",
     "back": "Back"
   },
+  "errors": {
+    "apiUnreachableTitle": "Can't reach the server",
+    "apiUnreachableBody": "The app couldn't connect to the server. Check that it's running and try again.",
+    "retry": "Try again"
+  },
   "array": {
     "empty": "No items yet.",
     "add": "Add item",
