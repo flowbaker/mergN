@@ -252,7 +252,7 @@ setLlmBudgetHooks({
     if (await usageCapExceeded())
       throw new Error("The AI usage limit for this deployment has been reached.");
     if (!billing.enabled()) return; // self-host: no per-space plan enforcement
-    const plan = getPlan((await billing.planOf(spaceId)).slug);
+    const plan = await billing.planOf(spaceId); // returns the resolved plan
     if (plan.limits.aiTokens < 0) return; // unlimited tier
     const u = await usage.get(spaceId);
     if (u.aiTokens >= plan.limits.aiTokens)
